@@ -1,0 +1,371 @@
+{
+  "sample": {
+    "assets": 15,
+    "days": 4877,
+    "start": "2007-04-12",
+    "end": "2026-08-31"
+  },
+  "cost_bps": 5.0,
+  "target_vol": 0.08,
+  "sleeves": [
+    {
+      "name": "trend",
+      "rebalance": "monthly",
+      "gross_sharpe": 0.367,
+      "sharpe": 0.343,
+      "t_stat_nw": 1.67,
+      "annual_return": 0.0216,
+      "annual_vol": 0.0696,
+      "max_drawdown": -0.2015,
+      "turnover_annual": 3.42
+    },
+    {
+      "name": "xs_momentum",
+      "rebalance": "monthly",
+      "gross_sharpe": 0.231,
+      "sharpe": 0.209,
+      "t_stat_nw": 1.1,
+      "annual_return": 0.0158,
+      "annual_vol": 0.0979,
+      "max_drawdown": -0.2715,
+      "turnover_annual": 4.35
+    },
+    {
+      "name": "reversal",
+      "rebalance": "weekly",
+      "gross_sharpe": 0.296,
+      "sharpe": -0.028,
+      "t_stat_nw": -0.15,
+      "annual_return": -0.0083,
+      "annual_vol": 0.1043,
+      "max_drawdown": -0.3293,
+      "turnover_annual": 67.45
+    },
+    {
+      "name": "carry",
+      "rebalance": "monthly",
+      "gross_sharpe": -0.253,
+      "sharpe": -0.26,
+      "t_stat_nw": -1.28,
+      "annual_return": -0.0164,
+      "annual_vol": 0.0573,
+      "max_drawdown": -0.3616,
+      "turnover_annual": 0.9
+    },
+    {
+      "name": "value",
+      "rebalance": "quarterly",
+      "gross_sharpe": -0.354,
+      "sharpe": -0.362,
+      "t_stat_nw": -1.79,
+      "annual_return": -0.0233,
+      "annual_vol": 0.0601,
+      "max_drawdown": -0.4652,
+      "turnover_annual": 1.03
+    }
+  ],
+  "correlation": {
+    "trend": {
+      "trend": 1.0,
+      "xs_momentum": 0.7404,
+      "reversal": -0.0493,
+      "carry": -0.0819,
+      "value": 0.0231
+    },
+    "xs_momentum": {
+      "trend": 0.7404,
+      "xs_momentum": 1.0,
+      "reversal": -0.0658,
+      "carry": -0.0947,
+      "value": -0.0526
+    },
+    "reversal": {
+      "trend": -0.0493,
+      "xs_momentum": -0.0658,
+      "reversal": 1.0,
+      "carry": -0.2213,
+      "value": -0.1484
+    },
+    "carry": {
+      "trend": -0.0819,
+      "xs_momentum": -0.0947,
+      "reversal": -0.2213,
+      "carry": 1.0,
+      "value": 0.3408
+    },
+    "value": {
+      "trend": 0.0231,
+      "xs_momentum": -0.0526,
+      "reversal": -0.1484,
+      "carry": 0.3408,
+      "value": 1.0
+    }
+  },
+  "equal_weight_effective_bets": 3.101,
+  "equal_weight_diversification_ratio": 2.053,
+  "chosen_allocator": "inverse_vol",
+  "selection": [
+    {
+      "name": "equal_weight",
+      "sharpe": 0.355,
+      "t_stat_nw": 1.18,
+      "annual_return": 0.0255,
+      "annual_vol": 0.0801,
+      "max_drawdown": -0.1775,
+      "sortino": 0.483
+    },
+    {
+      "name": "inverse_vol",
+      "sharpe": 0.562,
+      "t_stat_nw": 1.88,
+      "annual_return": 0.0466,
+      "annual_vol": 0.088,
+      "max_drawdown": -0.174,
+      "sortino": 0.803
+    },
+    {
+      "name": "risk_parity",
+      "sharpe": 0.529,
+      "t_stat_nw": 1.77,
+      "annual_return": 0.0436,
+      "annual_vol": 0.0881,
+      "max_drawdown": -0.174,
+      "sortino": 0.748
+    },
+    {
+      "name": "min_variance",
+      "sharpe": 0.035,
+      "t_stat_nw": 0.1,
+      "annual_return": 0.0005,
+      "annual_vol": 0.0509,
+      "max_drawdown": -0.1721,
+      "sortino": 0.037
+    },
+    {
+      "name": "sharpe_tilt",
+      "sharpe": 0.484,
+      "t_stat_nw": 1.53,
+      "annual_return": 0.04,
+      "annual_vol": 0.0894,
+      "max_drawdown": -0.1891,
+      "sortino": 0.677
+    },
+    {
+      "name": "best single sleeve (trend)",
+      "sharpe": 0.294,
+      "t_stat_nw": 1.06,
+      "annual_return": 0.0203,
+      "annual_vol": 0.0787,
+      "max_drawdown": -0.2015,
+      "sortino": 0.33
+    }
+  ],
+  "confirmation": [
+    {
+      "name": "equal_weight",
+      "sharpe": -0.262,
+      "t_stat_nw": -0.84,
+      "annual_return": -0.0215,
+      "annual_vol": 0.0731,
+      "max_drawdown": -0.218,
+      "chosen": ""
+    },
+    {
+      "name": "inverse_vol",
+      "sharpe": -0.215,
+      "t_stat_nw": -0.67,
+      "annual_return": -0.0176,
+      "annual_vol": 0.0708,
+      "max_drawdown": -0.2095,
+      "chosen": "<--"
+    },
+    {
+      "name": "risk_parity",
+      "sharpe": -0.218,
+      "t_stat_nw": -0.68,
+      "annual_return": -0.0178,
+      "annual_vol": 0.0708,
+      "max_drawdown": -0.211,
+      "chosen": ""
+    },
+    {
+      "name": "min_variance",
+      "sharpe": -0.104,
+      "t_stat_nw": -0.32,
+      "annual_return": -0.0099,
+      "annual_vol": 0.0717,
+      "max_drawdown": -0.2275,
+      "chosen": ""
+    },
+    {
+      "name": "sharpe_tilt",
+      "sharpe": -0.023,
+      "t_stat_nw": -0.07,
+      "annual_return": -0.0059,
+      "annual_vol": 0.0881,
+      "max_drawdown": -0.2791,
+      "chosen": ""
+    },
+    {
+      "name": "  sleeve: trend",
+      "sharpe": 0.415,
+      "t_stat_nw": 1.33,
+      "annual_return": 0.023,
+      "annual_vol": 0.0591,
+      "max_drawdown": -0.1633,
+      "chosen": ""
+    },
+    {
+      "name": "  sleeve: xs_momentum",
+      "sharpe": 0.327,
+      "t_stat_nw": 1.12,
+      "annual_return": 0.0214,
+      "annual_vol": 0.0731,
+      "max_drawdown": -0.1121,
+      "chosen": ""
+    },
+    {
+      "name": "  sleeve: reversal",
+      "sharpe": -0.188,
+      "t_stat_nw": -0.67,
+      "annual_return": -0.0188,
+      "annual_vol": 0.0826,
+      "max_drawdown": -0.227,
+      "chosen": ""
+    },
+    {
+      "name": "  sleeve: carry",
+      "sharpe": -0.563,
+      "t_stat_nw": -1.94,
+      "annual_return": -0.0321,
+      "annual_vol": 0.0553,
+      "max_drawdown": -0.2845,
+      "chosen": ""
+    },
+    {
+      "name": "  sleeve: value",
+      "sharpe": -0.584,
+      "t_stat_nw": -2.19,
+      "annual_return": -0.0442,
+      "annual_vol": 0.0729,
+      "max_drawdown": -0.3675,
+      "chosen": ""
+    }
+  ],
+  "persistence": [
+    {
+      "sleeve": "trend",
+      "selection_sharpe": 0.294,
+      "confirmation_sharpe": 0.415,
+      "same_sign": "yes"
+    },
+    {
+      "sleeve": "xs_momentum",
+      "selection_sharpe": 0.145,
+      "confirmation_sharpe": 0.327,
+      "same_sign": "yes"
+    },
+    {
+      "sleeve": "reversal",
+      "selection_sharpe": 0.08,
+      "confirmation_sharpe": -0.188,
+      "same_sign": "NO"
+    },
+    {
+      "sleeve": "carry",
+      "selection_sharpe": 0.022,
+      "confirmation_sharpe": -0.563,
+      "same_sign": "NO"
+    },
+    {
+      "sleeve": "value",
+      "selection_sharpe": -0.022,
+      "confirmation_sharpe": -0.584,
+      "same_sign": "yes"
+    }
+  ],
+  "vetted": [
+    {
+      "name": "vetted/equal_weight",
+      "sharpe": 0.091,
+      "t_stat_nw": 0.3,
+      "annual_return": 0.0041,
+      "annual_vol": 0.0789,
+      "max_drawdown": -0.161,
+      "sortino": 0.119
+    },
+    {
+      "name": "vetted/inverse_vol",
+      "sharpe": 0.126,
+      "t_stat_nw": 0.4,
+      "annual_return": 0.0067,
+      "annual_vol": 0.0748,
+      "max_drawdown": -0.1748,
+      "sortino": 0.169
+    },
+    {
+      "name": "vetted/risk_parity",
+      "sharpe": 0.126,
+      "t_stat_nw": 0.4,
+      "annual_return": 0.0067,
+      "annual_vol": 0.0748,
+      "max_drawdown": -0.1748,
+      "sortino": 0.169
+    },
+    {
+      "name": "vetted/min_variance",
+      "sharpe": -0.065,
+      "t_stat_nw": -0.19,
+      "annual_return": -0.0075,
+      "annual_vol": 0.0736,
+      "max_drawdown": -0.2281,
+      "sortino": -0.088
+    },
+    {
+      "name": "vetted/sharpe_tilt",
+      "sharpe": 0.072,
+      "t_stat_nw": 0.24,
+      "annual_return": 0.0024,
+      "annual_vol": 0.0895,
+      "max_drawdown": -0.2532,
+      "sortino": 0.097
+    },
+    {
+      "name": "single: trend",
+      "sharpe": 0.415,
+      "t_stat_nw": 1.33,
+      "annual_return": 0.023,
+      "annual_vol": 0.0591,
+      "max_drawdown": -0.1633,
+      "sortino": 0.518
+    },
+    {
+      "name": "all five, 1/N (from [4])",
+      "sharpe": -0.262,
+      "t_stat_nw": -0.84,
+      "annual_return": -0.0215,
+      "annual_vol": 0.0731,
+      "max_drawdown": -0.218,
+      "sortino": -0.351
+    }
+  ],
+  "vetted_sleeves": [
+    "trend",
+    "xs_momentum",
+    "reversal",
+    "carry"
+  ],
+  "netting": {
+    "netted_sharpe": 0.061,
+    "naive_sum_sharpe": 0.041,
+    "netted_turnover_annual": 37.06,
+    "naive_turnover_annual": 40.13,
+    "turnover_saved_pct": 7.7
+  },
+  "stress": {
+    "calm_mean_correlation": -0.0138,
+    "stress_mean_correlation": 0.0789,
+    "calm_effective_bets": 2.657,
+    "stress_effective_bets": 2.72
+  }
+}

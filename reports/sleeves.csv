@@ -1,0 +1,6 @@
+name,rebalance,gross_sharpe,sharpe,t_stat_nw,annual_return,annual_vol,max_drawdown,turnover_annual
+trend,monthly,0.367,0.343,1.67,0.0216,0.0696,-0.2015,3.42
+xs_momentum,monthly,0.231,0.209,1.1,0.0158,0.0979,-0.2715,4.35
+reversal,weekly,0.296,-0.028,-0.15,-0.0083,0.1043,-0.3293,67.45
+carry,monthly,-0.253,-0.26,-1.28,-0.0164,0.0573,-0.3616,0.9
+value,quarterly,-0.354,-0.362,-1.79,-0.0233,0.0601,-0.4652,1.03
