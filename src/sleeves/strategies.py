@@ -160,8 +160,13 @@ class Carry(Sleeve):
         # Neutralised within asset class before ranking across it. Without this
         # the sleeve is a permanent long-credit, short-equity position rather
         # than a carry signal -- see neutralise_within_class.
-        neutral = neutralise_within_class(yields.fillna(0.0), context.asset_class)
-        return rank_scores(neutral.where(yields.notna())).fillna(0.0)
+        #
+        # The NaN frame goes in unfilled, deliberately. Filling non-payers with
+        # zero first would drag each class mean toward zero by however many
+        # non-payers it holds, so a distributing commodity ETF would be measured
+        # against a mean a third of its own yield and rank as wildly cheap.
+        neutral = neutralise_within_class(yields, context.asset_class)
+        return rank_scores(neutral).fillna(0.0)
 
 
 class Value(Sleeve):

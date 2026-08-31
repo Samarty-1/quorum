@@ -13,7 +13,7 @@ QUORUM -- five strategies, five ways of splitting capital between them
       trend   monthly         0.484   0.450       2.13         0.0400      0.0979       -0.2170             6.44
 xs_momentum   monthly         0.411   0.378       1.77         0.0324      0.0964       -0.1882             5.90
    reversal    weekly         0.285  -0.081      -0.42        -0.0125      0.0970       -0.3262            69.51
-      carry   monthly        -0.377  -0.408      -1.92        -0.0413      0.0929       -0.6269             4.51
+      carry   monthly        -0.355  -0.389      -1.82        -0.0465      0.1077       -0.6592             5.86
       value quarterly        -0.165  -0.181      -0.78        -0.0206      0.0917       -0.5971             2.78
 
     Costs are not a rounding error here: reversal turns over 70x a year.
@@ -23,51 +23,53 @@ xs_momentum   monthly         0.411   0.378       1.77         0.0324      0.096
       trend             0.414                0.484       yes
 xs_momentum             0.368                0.388       yes
    reversal             0.101               -0.256        NO
-      carry            -0.428               -0.389       yes
+      carry            -0.418               -0.357       yes
       value             0.127               -0.381        NO
 
-    rank correlation across halves     +0.900 (5 sleeves -- indicative only)
+    rank correlation across halves     +0.700 (5 sleeves -- indicative only)
     sleeves keeping their sign         3 of 5
 
 [2] Sleeve correlation (net, full sample)
              trend  xs_momentum  reversal  carry  value
-trend        1.000        0.658     0.044 -0.101  0.091
-xs_momentum  0.658        1.000    -0.012 -0.176  0.079
-reversal     0.044       -0.012     1.000  0.019  0.026
-carry       -0.101       -0.176     0.019  1.000  0.369
-value        0.091        0.079     0.026  0.369  1.000
+trend        1.000        0.658     0.044 -0.088  0.091
+xs_momentum  0.658        1.000    -0.012 -0.196  0.079
+reversal     0.044       -0.012     1.000  0.054  0.026
+carry       -0.088       -0.196     0.054  1.000  0.382
+value        0.091        0.079     0.026  0.382  1.000
 
     equal-weight diversification ratio 1.89
-    effective independent bets         2.54  (of 5 sleeves)
-    mean pairwise correlation          +0.100
+    effective independent bets         1.89  (of 5 sleeves)
+    mean pairwise correlation          +0.104
     most correlated pair               trend / xs_momentum +0.658
 
 [3] SELECTION HALF -- choose the allocator here, and only here
                       name  sharpe  t_stat_nw  annual_return  annual_vol  max_drawdown  sortino
-              equal_weight   0.481       1.61         0.0366      0.0816       -0.1647    0.657
-               inverse_vol   0.489       1.70         0.0407      0.0899       -0.1689    0.669
-               risk_parity   0.459       1.55         0.0372      0.0880       -0.1682    0.636
-              min_variance  -0.054      -0.17        -0.0060      0.0680       -0.2001   -0.059
-               sharpe_tilt   0.446       1.52         0.0343      0.0834       -0.1530    0.613
+              equal_weight   0.455       1.51         0.0344      0.0816       -0.1688    0.620
+               inverse_vol   0.489       1.69         0.0408      0.0901       -0.1682    0.669
+               risk_parity   0.441       1.49         0.0358      0.0886       -0.1674    0.610
+              min_variance  -0.026      -0.08        -0.0044      0.0717       -0.2144   -0.028
+               sharpe_tilt   0.430       1.47         0.0328      0.0832       -0.1534    0.592
+         gated/risk_parity   0.217       0.77         0.0149      0.0850       -0.1413    0.293
 best single sleeve (trend)   0.414       1.49         0.0361      0.0970       -0.1901    0.503
 
     Chosen on the selection half: inverse_vol
 
 [4] CONFIRMATION HALF -- scored once, allocator fixed above
                  name  sharpe  t_stat_nw  annual_return  annual_vol  max_drawdown chosen
-         equal_weight  -0.005      -0.02        -0.0037      0.0816       -0.3424       
-          inverse_vol  -0.037      -0.12        -0.0062      0.0808       -0.3434    <--
-          risk_parity  -0.039      -0.13        -0.0064      0.0808       -0.3447       
-         min_variance  -0.109      -0.37        -0.0116      0.0791       -0.3390       
-          sharpe_tilt  -0.009      -0.03        -0.0041      0.0820       -0.2791       
+         equal_weight   0.010       0.03        -0.0024      0.0799       -0.3244       
+          inverse_vol  -0.008      -0.02        -0.0038      0.0799       -0.3212    <--
+          risk_parity  -0.010      -0.03        -0.0040      0.0799       -0.3225       
+         min_variance  -0.106      -0.35        -0.0115      0.0794       -0.3309       
+          sharpe_tilt   0.006       0.02        -0.0028      0.0809       -0.2505       
+    gated/risk_parity  -0.090      -0.29        -0.0103      0.0795       -0.2731       
         sleeve: trend   0.484       1.52         0.0440      0.0989       -0.2170       
   sleeve: xs_momentum   0.388       1.29         0.0347      0.1009       -0.1575       
      sleeve: reversal  -0.256      -0.95        -0.0298      0.0991       -0.2677       
-        sleeve: carry  -0.389      -1.31        -0.0416      0.0970       -0.4544       
+        sleeve: carry  -0.357      -1.18        -0.0399      0.1001       -0.4339       
         sleeve: value  -0.381      -1.17        -0.0469      0.1101       -0.5080       
 
-    1/N on the confirmation half:      -0.005
-    inverse_vol on the same:  -0.037
+    1/N on the confirmation half:      +0.010
+    inverse_vol on the same:  -0.008
 
 [4b] Vetted book -- fund only sleeves that were profitable on the selection half
     kept     ['trend', 'xs_momentum', 'reversal', 'value']
@@ -78,33 +80,34 @@ best single sleeve (trend)   0.414       1.49         0.0361      0.0970       -
       vetted/risk_parity   0.113       0.38         0.0059      0.0831       -0.2853    0.140
      vetted/min_variance  -0.139      -0.47        -0.0148      0.0826       -0.3489   -0.174
       vetted/sharpe_tilt   0.125       0.40         0.0068      0.0808       -0.2359    0.160
+vetted/gated/risk_parity   0.020       0.06        -0.0016      0.0795       -0.2692    0.025
            single: trend   0.484       1.52         0.0440      0.0989       -0.2170    0.623
-all five, 1/N (from [4])  -0.005      -0.02        -0.0037      0.0816       -0.3424   -0.006
+all five, 1/N (from [4])   0.010       0.03        -0.0024      0.0799       -0.3244    0.013
 
 [5] Netting sleeves into one book vs averaging their return streams
-    netted_sharpe                0.238
-    naive_sum_sharpe             0.209
-    netted_turnover_annual       27.98
-    naive_turnover_annual        32.68
-    turnover_saved_pct           14.4
+    netted_sharpe                0.235
+    naive_sum_sharpe             0.204
+    netted_turnover_annual       27.36
+    naive_turnover_annual        32.5
+    turnover_saved_pct           15.8
 
 [6] Sleeve correlation in calm markets vs drawdowns
     days in a >10% SPY drawdown        1477 of 4877
-    mean pairwise correlation, calm    +0.113
-    mean pairwise correlation, stress  +0.075
-    effective bets, calm               2.72
-    effective bets, stress             2.01
+    mean pairwise correlation, calm    +0.127
+    mean pairwise correlation, stress  +0.065
+    effective bets, calm               2.46
+    effective bets, stress             1.42
 
-[7] DEFLATED SHARPE -- 25 configurations were tested on one sample
-    trials counted: 25 (5 sleeves x 5 allocators)
-    observed spread of trial Sharpes: variance 0.0555
+[7] DEFLATED SHARPE -- 30 configurations on one sample
+    trials counted: 30 (5 sleeves x 6 allocators)
+    observed spread of trial Sharpes: variance 0.0485
 
               candidate  raw_sharpe  psr_vs_zero  threshold  deflated_sharpe  bhy_haircut_sharpe  haircut_pct survives
- portfolio: inverse_vol      0.2398       0.8550     0.4703           0.1545              0.0000       100.00       no
-portfolio: equal_weight      0.2381       0.8521     0.4703           0.1539              0.0000       100.00       no
-     best sleeve: trend      0.4497       0.9759     0.4703           0.4639              0.3028        32.66       no
+ portfolio: inverse_vol      0.2550       0.8699     0.4566           0.1867               0.000       100.00       no
+portfolio: equal_weight      0.2349       0.8490     0.4566           0.1651               0.000       100.00       no
+     best sleeve: trend      0.4497       0.9759     0.4566           0.4879               0.297        33.96       no
 
-    deflated_sharpe is P(true Sharpe > the best of 25 trials under the null).
+    deflated_sharpe is P(true Sharpe > the best of 30 trials under the null).
     Above 0.95 is the usual bar. Nothing here is close to it.
 
 Saved reports to C:\Users\Leigh\quorum\reports

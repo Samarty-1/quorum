@@ -134,6 +134,14 @@ def neutralise_within_class(scores: pd.DataFrame,
     this REIT cheap against other REITs, is this credit ETF cheap against other
     credit. The asset-class bet, if wanted, belongs in a separate sleeve where
     it can be sized deliberately.
+
+    NaN in `scores` means "this asset has no reading", not "zero", and the
+    distinction matters. Passing a NaN-filled frame in drags the class mean
+    toward zero by however many non-observations the class contains: in a
+    commodity class where one ETF distributes and two do not, the payer would be
+    measured against a mean of one third its own yield and look enormously rich.
+    The mean here skips NaN and NaN members stay NaN, so a caller can mask them
+    out afterwards without having polluted anything.
     """
     if not asset_class:
         return scores
@@ -144,13 +152,18 @@ def neutralise_within_class(scores: pd.DataFrame,
         classes.setdefault(asset_class.get(ticker, "_unknown"), []).append(ticker)
 
     for members in classes.values():
+        block = scores[members]
+        # Count only members that actually have a reading on each date.
+        observed = block.notna().sum(axis=1)
         if len(members) < 2:
             # A single-member class carries no within-class information. Zero it
             # rather than leaving its raw level to dominate the cross-section.
-            out[members] = 0.0
+            out[members] = block.where(block.isna(), 0.0)
             continue
-        block = scores[members]
-        out[members] = block.sub(block.mean(axis=1), axis=0)
+        centred = block.sub(block.mean(axis=1, skipna=True), axis=0)
+        # A date on which only one member of the class has a reading is the
+        # single-member case again, per date rather than per universe.
+        out[members] = centred.where(observed.gt(1), other=centred.where(block.isna(), 0.0))
     return out
 
 

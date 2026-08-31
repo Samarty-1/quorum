@@ -68,7 +68,19 @@ class PortfolioConfig:
     #: scalar to undo the netting after the fact.
     sleeve_target_vol: float | None = 0.10
     sleeve_vol_halflife: int = 40
-    sleeve_max_leverage: float = 4.0
+    #: Six, not four. Raw sleeve volatility on this book spans 3.08% (carry) to
+    #: 10.09% (reversal), a 3.3x range -- which is itself the argument for
+    #: targeting per sleeve rather than allocating over unit gross. Reaching a
+    #: 10% target from 3.08% needs 3.2x, and at a 4x cap the quietest sleeve was
+    #: pinned below target on 36.9% of days: the per-sleeve target was
+    #: inoperative for exactly the sleeve it mattered most for, which is the
+    #: portfolio-level defect one level down. At 6x it binds on 2.0%.
+    #:
+    #: Worth stating plainly: this levers a quiet sleeve toward 3x, and
+    #: volatility targeting amplifies whatever edge the sleeve has, including a
+    #: negative one. It equalises risk, not quality -- which is why the sleeve
+    #: gate below exists.
+    sleeve_max_leverage: float = 6.0
 
     #: Hard cap on summed absolute weight, independent of the vol target. A
     #: volatility estimate can be wrong; a gross exposure limit cannot be.
@@ -164,7 +176,7 @@ def vol_target_sleeves(books: dict[str, pd.DataFrame], asset_returns: pd.DataFra
 
 
 def sleeve_return_streams(books: dict[str, pd.DataFrame], returns: pd.DataFrame,
-                          cost_bps: float) -> pd.DataFrame:
+                          cost_bps: float | pd.Series) -> pd.DataFrame:
     """Each sleeve's standalone net return, for the allocator to learn from.
 
     Charged at the sleeve's own turnover, which is the right input for an
@@ -182,6 +194,8 @@ def run_portfolio(books: dict[str, pd.DataFrame], sleeve_returns: pd.DataFrame,
                   asset_returns: pd.DataFrame, allocator: Allocator,
                   config: PortfolioConfig, name: str | None = None) -> PortfolioResult:
     """Walk forward, allocating across sleeves and netting them into one book."""
+    allocator.check_window(config.lookback_days)
+
     sleeve_names = list(books.keys())
     dates = asset_returns.index
     decision_dates = rebalance_dates(dates, config.rebalance)

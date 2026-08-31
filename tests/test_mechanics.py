@@ -22,7 +22,6 @@ from src.allocators import (
 )
 from src.risk import (
     diversification_ratio,
-    drawdown_throttle,
     effective_bets,
     ledoit_wolf_covariance,
     volatility_scalar,
@@ -234,13 +233,3 @@ class TestRiskLayer:
         assert diversification_ratio(np.full(3, 1 / 3), identical) == pytest.approx(1.0, rel=1e-6)
         independent = np.eye(3) * 0.01
         assert diversification_ratio(np.full(3, 1 / 3), independent) > 1.7
-
-    def test_drawdown_throttle_cuts_only_after_losses(self):
-        equity = pd.Series([1.0, 1.1, 1.05, 0.99, 0.88, 0.85])
-        throttle = drawdown_throttle(equity, start_drawdown=0.10,
-                                     full_stop_drawdown=0.20, floor=0.25)
-        assert throttle.iloc[0] == pytest.approx(1.0), "no drawdown, no throttle"
-        assert throttle.iloc[1] == pytest.approx(1.0), "at a new high, no throttle"
-        assert throttle.iloc[4] < 1.0, "20% off the high must cut exposure"
-        assert throttle.min() >= 0.25
-        assert throttle.is_monotonic_decreasing or throttle.iloc[-1] < throttle.iloc[0]

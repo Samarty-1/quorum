@@ -366,3 +366,134 @@ class TestSharpeTiltLookback:
 
         weights = TrailingSharpeTilt().allocate(window)
         assert weights[0] > weights[1], "three years should outvote six months"
+
+
+class TestEdgeGate:
+    """The audit's top recommendation, made testable.
+
+    Three of five sleeves lost money out of sample and no allocation scheme
+    rescued the book. The gate decides *whether* a sleeve is funded; the inner
+    allocator still decides how much.
+    """
+
+    @staticmethod
+    def _window(seed=61, n=1200):
+        dates = pd.bdate_range("2016-01-01", periods=n)
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame({
+            "good": rng.normal(0.0006, 0.007, n),
+            "flat": rng.normal(0.0000, 0.007, n),
+            "bad": rng.normal(-0.0006, 0.007, n),
+        }, index=dates)
+
+    def test_defunds_a_persistently_losing_sleeve_entirely(self):
+        from src.allocators import EdgeGated, EqualWeight
+
+        weights = EdgeGated(EqualWeight()).allocate(self._window())
+        assert weights[2] == pytest.approx(0.0), "a losing sleeve gets nothing, not a floor"
+        assert weights[0] > 0.0
+
+    def test_is_a_binary_gate_not_a_proportional_tilt(self):
+        """The distinction from TrailingSharpeTilt, which chases: crossing the
+        bar must not change how much a sleeve gets."""
+        from src.allocators import EdgeGated, EqualWeight
+
+        window = self._window()
+        weights = EdgeGated(EqualWeight()).allocate(window)
+        funded = weights[weights > 0]
+        assert len(funded) >= 1
+        assert funded.max() == pytest.approx(funded.min()), \
+            "inner allocator is 1/N, so survivors must be equally funded"
+
+    def test_delegates_sizing_to_the_inner_allocator(self):
+        from src.allocators import EdgeGated, InverseVolatility
+
+        dates = pd.bdate_range("2016-01-01", periods=1200)
+        rng = np.random.default_rng(62)
+        window = pd.DataFrame({
+            "calm": rng.normal(0.0006, 0.004, 1200),
+            "wild": rng.normal(0.0006, 0.020, 1200),
+            "bad": rng.normal(-0.0008, 0.007, 1200),
+        }, index=dates)
+
+        weights = EdgeGated(InverseVolatility()).allocate(window)
+        assert weights[2] == pytest.approx(0.0), "gate removes the loser"
+        assert weights[0] > weights[1], "inner allocator still risk-balances the rest"
+
+    def test_a_higher_bar_funds_fewer_sleeves(self):
+        """Only meaningful while at least one sleeve still clears the bar. Above
+        that the allocator hits its fallback and funds everything again, which
+        is a documented limitation rather than the gate loosening -- so the bar
+        here sits between two known t-statistics."""
+        from src.allocators import EdgeGated, EqualWeight
+
+        n = 1200
+        dates = pd.bdate_range("2016-01-01", periods=n)
+        rng = np.random.default_rng(65)
+        # Standard error of the mean is 0.007/sqrt(1200) = 2.0e-4, so these
+        # drifts put the three sleeves near t = +4, +1 and -4.
+        window = pd.DataFrame({
+            "strong": rng.normal(8.1e-4, 0.007, n),
+            "weak": rng.normal(2.0e-4, 0.007, n),
+            "bad": rng.normal(-8.1e-4, 0.007, n),
+        }, index=dates)
+
+        lenient = EdgeGated(EqualWeight(), min_t_stat=0.0).allocate(window)
+        strict = EdgeGated(EqualWeight(), min_t_stat=2.0).allocate(window)
+
+        assert int((lenient > 1e-12).sum()) == 2, "bar at 0 admits strong and weak"
+        assert int((strict > 1e-12).sum()) == 1, "bar at 2 admits only strong"
+        assert strict[0] == pytest.approx(1.0)
+
+    def test_falls_back_rather_than_returning_nothing(self):
+        """Its contract is weights summing to one, so it cannot hold cash. When
+        every sleeve fails the bar it says so by returning 1/N and leaves the
+        de-risking to the volatility target."""
+        from src.allocators import EdgeGated, EqualWeight
+
+        dates = pd.bdate_range("2016-01-01", periods=1200)
+        rng = np.random.default_rng(63)
+        all_bad = pd.DataFrame({
+            "a": rng.normal(-0.0008, 0.007, 1200),
+            "b": rng.normal(-0.0008, 0.007, 1200),
+        }, index=dates)
+        weights = EdgeGated(EqualWeight()).allocate(all_bad)
+        assert weights.sum() == pytest.approx(1.0)
+        assert weights == pytest.approx(np.full(2, 0.5))
+
+    def test_uses_a_newey_west_statistic(self):
+        """A monthly-rebalanced sleeve holds the same position for twenty days,
+        so a plain t-statistic overstates the evidence and the gate would admit
+        sleeves it should reject."""
+        from src.allocators import EdgeGated
+
+        rng = np.random.default_rng(64)
+        overlapping = pd.Series(rng.normal(0, 1, 3000)).rolling(20).mean().dropna() + 0.04
+        arr = overlapping.to_numpy(dtype=float)
+        naive = arr.mean() / (arr.std(ddof=1) / np.sqrt(len(arr)))
+        assert abs(EdgeGated._newey_west_t(arr)) < abs(naive)
+
+    def test_a_minimum_larger_than_the_lookback_is_refused(self):
+        """The bug this guard exists for: an allocator whose minimum exceeds the
+        window it is handed falls back on every date and never runs, producing
+        output identical to the fallback with no error."""
+        from src.allocators import EdgeGated, EqualWeight
+
+        gate = EdgeGated(EqualWeight(), min_observations=756)
+        with pytest.raises(ValueError, match="never run"):
+            gate.check_window(504)
+        gate.check_window(756)     # exactly enough is fine
+
+    def test_default_gate_fits_the_default_lookback(self):
+        from src.allocators import EdgeGated
+        from src.portfolio import PortfolioConfig
+
+        EdgeGated().check_window(PortfolioConfig().lookback_days)
+
+    def test_every_default_allocator_fits_the_default_lookback(self):
+        from src.allocators import default_allocators
+        from src.portfolio import PortfolioConfig
+
+        lookback = PortfolioConfig().lookback_days
+        for allocator in default_allocators():
+            allocator.check_window(lookback)

@@ -38,10 +38,10 @@
     },
     {
       "sleeve": "reversal",
-      "Equity": -0.03,
-      "Rates": 0.034,
-      "Credit": 0.006,
-      "RealAsset": -0.01
+      "Equity": -0.028,
+      "Rates": 0.037,
+      "Credit": 0.004,
+      "RealAsset": -0.013
     },
     {
       "sleeve": "carry",
@@ -58,78 +58,78 @@
       "RealAsset": 0.035
     }
   ],
-  "internal_crossing_mean": 0.5078,
+  "internal_crossing_mean": 0.5085,
   "vol_target": {
-    "unlevered_median_vol": 0.024,
-    "median_required_leverage": 4.146,
-    "pct_days_cap_binds": 0.9533
+    "unlevered_median_vol": 0.0243,
+    "median_required_leverage": 4.108,
+    "pct_days_cap_binds": 0.9552
   },
   "vol_reaction_days": {
     "GFC 2008": {
       "21": 11,
-      "63": 14,
-      "126": 22,
-      "252": 32
+      "63": 12,
+      "126": 19,
+      "252": 29
     },
     "Taper 2013": {
-      "21": 24,
-      "63": 64,
+      "21": 19,
+      "63": 33,
       "126": null,
       "252": null
     },
     "Volmageddon 18": {
       "21": 14,
       "63": 15,
-      "126": null,
+      "126": 21,
       "252": null
     },
     "COVID 2020": {
       "21": 14,
-      "63": 21,
+      "63": 20,
       "126": 40,
       "252": null
     },
     "Rate hikes 22": {
-      "21": null,
+      "21": 121,
       "63": null,
       "126": null,
       "252": null
     }
   },
   "throttle": {
-    "days_at_full_risk": 2944,
-    "days_at_075": 1067,
-    "days_at_050": 866,
+    "days_at_full_risk": 3155,
+    "days_at_075": 1215,
+    "days_at_050": 507,
     "days_flat": 0,
-    "pct_time_derisked": 39.6,
-    "sharpe_off": 0.055,
-    "sharpe_on": 0.051
+    "pct_time_derisked": 35.3,
+    "sharpe_off": 0.091,
+    "sharpe_on": 0.086
   },
   "sharpe_tilt_chasing": [
     {
       "sleeve": "trend",
-      "corr_with_PAST_6m": 0.044,
-      "corr_with_NEXT_1m": -0.064
+      "corr_with_PAST_6m": 0.04,
+      "corr_with_NEXT_1m": -0.033
     },
     {
       "sleeve": "xs_momentum",
-      "corr_with_PAST_6m": 0.079,
-      "corr_with_NEXT_1m": 0.02
+      "corr_with_PAST_6m": 0.072,
+      "corr_with_NEXT_1m": -0.0
     },
     {
       "sleeve": "reversal",
-      "corr_with_PAST_6m": 0.001,
-      "corr_with_NEXT_1m": -0.02
+      "corr_with_PAST_6m": 0.084,
+      "corr_with_NEXT_1m": -0.019
     },
     {
       "sleeve": "carry",
-      "corr_with_PAST_6m": 0.133,
-      "corr_with_NEXT_1m": -0.104
+      "corr_with_PAST_6m": 0.074,
+      "corr_with_NEXT_1m": -0.065
     },
     {
       "sleeve": "value",
-      "corr_with_PAST_6m": 0.026,
-      "corr_with_NEXT_1m": -0.07
+      "corr_with_PAST_6m": 0.058,
+      "corr_with_NEXT_1m": -0.058
     }
   ],
   "allocator_stability": [
@@ -144,7 +144,7 @@
     {
       "allocator": "inverse_vol",
       "mean_abs_weight_change": 0.0484,
-      "p95_weight_change": 0.0829,
+      "p95_weight_change": 0.0827,
       "mean_herfindahl": 0.267,
       "max_single_sleeve": 1.0,
       "min_effective_sleeves": 1.0
@@ -152,26 +152,34 @@
     {
       "allocator": "risk_parity",
       "mean_abs_weight_change": 0.0453,
-      "p95_weight_change": 0.0909,
+      "p95_weight_change": 0.0914,
       "mean_herfindahl": 0.251,
       "max_single_sleeve": 1.0,
       "min_effective_sleeves": 1.0
     },
     {
       "allocator": "min_variance",
-      "mean_abs_weight_change": 0.0549,
-      "p95_weight_change": 0.1725,
-      "mean_herfindahl": 0.455,
+      "mean_abs_weight_change": 0.0552,
+      "p95_weight_change": 0.1694,
+      "mean_herfindahl": 0.457,
       "max_single_sleeve": 1.0,
       "min_effective_sleeves": 1.0
     },
     {
       "allocator": "sharpe_tilt",
-      "mean_abs_weight_change": 0.2175,
-      "p95_weight_change": 0.9976,
-      "mean_herfindahl": 0.393,
+      "mean_abs_weight_change": 0.1886,
+      "p95_weight_change": 0.8684,
+      "mean_herfindahl": 0.384,
       "max_single_sleeve": 0.8,
       "min_effective_sleeves": 1.54
+    },
+    {
+      "allocator": "gated/risk_parity",
+      "mean_abs_weight_change": 0.2732,
+      "p95_weight_change": 1.0714,
+      "mean_herfindahl": 0.47,
+      "max_single_sleeve": 1.0,
+      "min_effective_sleeves": 1.0
     }
   ],
   "spy_tlt_correlation": {

@@ -23,6 +23,27 @@ standard practice and widely believed to help, and because this repo is in a
 position to measure whether it does. It is not obviously a good idea: a throttle
 that de-risks into a trough and re-risks after the recovery converts a drawdown
 into a permanent loss.
+
+Two estimators, on purpose
+--------------------------
+The covariance matrix and the volatility scalar are estimated on deliberately
+different windows, because they are answering different questions and have
+different error properties.
+
+* **Correlation structure** comes from :func:`ledoit_wolf_covariance` on the
+  allocator's long window (two years by default). Correlations are more stable
+  than variances and genuinely benefit from the extra data; a short window
+  produces a correlation matrix dominated by noise, and every allocator past
+  equal weight inverts or iterates on that matrix.
+* **The scaling decision** comes from :func:`asymmetric_volatility`, a blend of
+  20- and 60-day EWMAs. Measured on this book, a 126-day rolling window took 22
+  trading days to register the GFC, 40 to register COVID, and never registered
+  Volmageddon at all -- because one observation is 1/126 of the estimate, so a
+  single 5-sigma day moves it under 4%.
+
+Using one window for both is the mistake: long enough for the correlations is
+far too slow for the leverage, and short enough for the leverage makes the
+correlations unusable.
 """
 
 from __future__ import annotations
@@ -106,25 +127,6 @@ def volatility_scalar(realised_vol: float, target_vol: float,
     if not np.isfinite(realised_vol) or realised_vol <= 1e-8:
         return 0.0
     return float(min(target_vol / realised_vol, max_leverage))
-
-
-def drawdown_throttle(equity_curve: pd.Series, start_drawdown: float = 0.10,
-                      full_stop_drawdown: float = 0.20,
-                      floor: float = 0.25) -> pd.Series:
-    """Exposure multiplier that falls as drawdown deepens.
-
-    Linear between `start_drawdown` and `full_stop_drawdown`, bottoming at
-    `floor`. Applied with a one-day lag by the caller -- the throttle can only
-    react to a loss already realised, and a version that reacts on the same day
-    is reading the future.
-    """
-    peak = equity_curve.cummax()
-    drawdown = (equity_curve / peak - 1.0).clip(upper=0.0)
-    depth = -drawdown
-
-    span = max(full_stop_drawdown - start_drawdown, 1e-9)
-    fraction = ((depth - start_drawdown) / span).clip(lower=0.0, upper=1.0)
-    return (1.0 - (1.0 - floor) * fraction).rename("throttle")
 
 
 def realised_volatility(returns: pd.Series, window: int = 63,

@@ -311,7 +311,8 @@ def main() -> None:
     print(f"    effective bets, stress             {effective_bets(equal, stress_cov):.2f}")
 
     # ---- [7] what survives a multiple-testing correction ------------------
-    print("\n[7] DEFLATED SHARPE -- 25 configurations were tested on one sample")
+    print(f"\n[7] DEFLATED SHARPE -- "
+          f"{len(default_allocators()) * len(sleeves)} configurations on one sample")
     all_trial_sharpes = []
     for portfolio in portfolios.values():
         all_trial_sharpes.append(backtest.sharpe_of(portfolio.result.returns))
@@ -352,7 +353,8 @@ def main() -> None:
     deflation_table = pd.DataFrame(rows)
     print()
     print(deflation_table.to_string(index=False))
-    print("\n    deflated_sharpe is P(true Sharpe > the best of 25 trials under the null).")
+    print(f"\n    deflated_sharpe is P(true Sharpe > the best of {n_trials} "
+          f"trials under the null).")
     print("    Above 0.95 is the usual bar. Nothing here is close to it.")
 
     # ---- save --------------------------------------------------------------

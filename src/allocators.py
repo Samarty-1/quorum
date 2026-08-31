@@ -46,6 +46,22 @@ class Allocator(ABC):
     def allocate(self, window: pd.DataFrame) -> np.ndarray:
         """Non-negative weights summing to one, in `window`'s column order."""
 
+    def check_window(self, lookback_days: int) -> None:
+        """Refuse a lookback this allocator can never satisfy.
+
+        An allocator whose `min_observations` exceeds the window it will be
+        handed falls back on every rebalance date and never runs -- producing
+        results identical to the fallback, with no error and no way to tell from
+        the output that anything is wrong. It happened once here and cost a
+        whole study run to notice.
+        """
+        if self.min_observations > lookback_days:
+            raise ValueError(
+                f"{self.name}: min_observations={self.min_observations} exceeds "
+                f"lookback_days={lookback_days}, so it would fall back on every "
+                f"date and never run. Lower the minimum or lengthen the lookback."
+            )
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r})"
 
@@ -255,4 +271,98 @@ DEFAULT_ALLOCATOR = RiskParity
 def default_allocators() -> list[Allocator]:
     """Order is fixed so reports and tests line up."""
     return [EqualWeight(), InverseVolatility(), RiskParity(), MinimumVariance(),
-            TrailingSharpeTilt()]
+            TrailingSharpeTilt(), EdgeGated(RiskParity())]
+
+
+class EdgeGated(Allocator):
+    """Fund only the sleeves that have shown edge, then allocate over those.
+
+    This is the recommendation the audit ended on, made into a component rather
+    than left as a one-off analysis: *establish that a sleeve has edge before
+    deciding how much capital it gets*.
+
+    The measurements it exists to answer:
+
+    * Three of five sleeves lost money out of sample, and no allocation scheme
+      rescues a book of negative-edge components. Diversification reduces
+      variance; it does not manufacture expected return.
+    * Which sleeves were funded moved the confirmation-half Sharpe more than the
+      choice of allocator did. The gate operates on the decision that matters.
+    * Volatility targeting equalises risk, not quality, and will happily lever a
+      losing sleeve toward its target. Something has to decide quality.
+
+    How it differs from :class:`TrailingSharpeTilt`, which chases
+    -------------------------------------------------------------
+    The tilt allocates *proportionally* to trailing Sharpe, so it responds to
+    every wiggle in a statistic whose standard error dwarfs the differences
+    between sleeves -- measured at +0.13 correlation with a sleeve's past and
+    -0.10 with its future.
+
+    This is a **binary gate on a long window**, not a proportional response on a
+    short one. A sleeve is either in or out, the bar is a t-statistic rather than
+    a point estimate, and the window is long enough that the statistic means
+    something. Crossing the bar changes nothing about how much a sleeve gets --
+    that is still the inner allocator's job.
+
+    The t-statistic is Newey-West corrected: a monthly-rebalanced sleeve holds
+    the same position for twenty days, so its daily returns are autocorrelated
+    and the plain statistic overstates the evidence.
+
+    `min_observations` defaults to 504 to match the engine's default lookback.
+    It must not exceed it: an allocator whose minimum is larger than the window
+    it is handed falls back on every single date and never runs at all. That
+    happened here -- a 756 default against a 504 lookback made this allocator
+    silently identical to equal weight, with no error and entirely plausible
+    output. :func:`Allocator.check_window` now refuses that configuration.
+
+    Two years is short for a t-statistic on a Sharpe ratio (standard error
+    around 0.7 Sharpe units), which is exactly why the default bar is zero
+    rather than two: at this window length the gate can only be asked to
+    separate "has lost money persistently" from "has not".
+    """
+
+    name = "edge_gated"
+
+    def __init__(self, inner: Allocator | None = None, min_t_stat: float = 0.0,
+                 min_observations: int = 504):
+        self.inner = inner if inner is not None else EqualWeight()
+        self.min_t_stat = min_t_stat
+        self.min_observations = min_observations
+        self.name = f"gated/{self.inner.name}"
+
+    @staticmethod
+    def _newey_west_t(series: np.ndarray) -> float:
+        n = len(series)
+        if n < 30:
+            return float("nan")
+        lags = int(np.floor(4.0 * (n / 100.0) ** (2.0 / 9.0)))
+        e = series - series.mean()
+        variance = float(e @ e / n)
+        for lag in range(1, min(lags, n - 1) + 1):
+            weight = 1.0 - lag / (lags + 1.0)
+            variance += 2.0 * weight * float(e[lag:] @ e[:-lag] / n)
+        if not np.isfinite(variance) or variance <= 0:
+            return float("nan")
+        return float(series.mean() / np.sqrt(variance / n))
+
+    def allocate(self, window: pd.DataFrame) -> np.ndarray:
+        n = window.shape[1]
+        scores = np.array([self._newey_west_t(window[c].dropna().to_numpy(dtype=float))
+                           for c in window.columns])
+        keep = np.isfinite(scores) & (scores > self.min_t_stat)
+
+        # Every sleeve rejected. Falling back to funding all of them would be
+        # perverse -- the gate has just said none of them has shown edge -- but
+        # this allocator cannot hold cash, because its contract is weights that
+        # sum to one. So it returns the least-bad book it can and the caller's
+        # volatility target does the de-risking. Recorded here because it is a
+        # real limitation rather than a design choice.
+        if not keep.any():
+            return EqualWeight().allocate(window)
+
+        survivors = window.loc[:, keep]
+        inner_weights = self.inner.allocate(survivors)
+
+        weights = np.zeros(n)
+        weights[keep] = inner_weights
+        return _normalise(weights)

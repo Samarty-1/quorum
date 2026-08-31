@@ -5,9 +5,10 @@ of splitting capital between them, and an honest account of what running more
 than one strategy actually bought.
 
 **The short answer: less than advertised.** Naive diversification across five
-standard strategies produced a **−0.01** Sharpe out of sample while simply
-running the single best sleeve produced **+0.48**. Vetting the sleeves first
-gets the book to **+0.13** — still a quarter of what concentration delivered.
+standard strategies produced a **+0.01** Sharpe out of sample while simply
+running the single best sleeve produced **+0.48**. Vetting the sleeves once, with
+hindsight, gets the book to **+0.13**; vetting them *walk-forward* — the only
+version available to someone actually running it — gives **−0.09**.
 
 > **Revised after a structural audit** (`scripts/audit.py`, output in
 > `reports/audit_output.txt`). The first version ran unit-*gross* sleeves under
@@ -47,8 +48,9 @@ volatility** (mean 5.8bps, p95 11.4bps). Sleeves are volatility-targeted to 10%
 individually; the portfolio targets 8%.
 
 Allocators: equal weight (1/N), inverse volatility, risk parity, minimum
-variance, and a trailing-Sharpe tilt. All estimated walk-forward on a trailing
-two-year window; none ever sees the returns it is about to earn.
+variance, a trailing-Sharpe tilt, and an **edge gate** that funds only sleeves
+clearing a t-statistic bar on trailing data. All estimated walk-forward on a
+trailing two-year window; none ever sees the returns it is about to earn.
 
 ## What the sleeves do on their own
 
@@ -105,21 +107,23 @@ Barely, and less than any other decision in the study.
 
 | Allocator | Sharpe | t (NW) |
 |---|---|---|
-| equal_weight | 0.490 | 1.64 |
-| **inverse_vol** | **0.497** | 1.72 |
-| risk_parity | 0.470 | 1.58 |
-| min_variance | −0.065 | −0.20 |
-| sharpe_tilt | 0.466 | 1.59 |
+| equal_weight | 0.455 | 1.51 |
+| **inverse_vol** | **0.489** | 1.69 |
+| risk_parity | 0.441 | 1.49 |
+| min_variance | −0.026 | −0.08 |
+| sharpe_tilt | 0.430 | 1.47 |
+| gated/risk_parity | 0.217 | 0.77 |
 
 **Confirmation half** (2016-12 to 2026-08), scored once:
 
 | Allocator | Sharpe | t (NW) |
 |---|---|---|
-| equal_weight | −0.005 | −0.02 |
-| inverse_vol *(chosen)* | −0.037 | −0.12 |
-| risk_parity | −0.039 | −0.13 |
-| min_variance | −0.109 | −0.37 |
-| sharpe_tilt | −0.009 | −0.03 |
+| equal_weight | +0.010 | 0.03 |
+| inverse_vol *(chosen)* | −0.008 | −0.02 |
+| risk_parity | −0.010 | −0.03 |
+| min_variance | −0.106 | −0.35 |
+| sharpe_tilt | +0.006 | 0.02 |
+| gated/risk_parity | −0.090 | −0.29 |
 
 The allocator picked on the selection half was not the best on the confirmation
 half, and the entire spread from best to worst is **0.10 Sharpe** — far smaller
@@ -138,9 +142,9 @@ No — and this is the finding.
 
 | Book | Confirmation Sharpe |
 |---|---|
-| All five sleeves, 1/N | **−0.005** |
+| All five sleeves, 1/N | **+0.010** |
+| Walk-forward edge gate | −0.090 |
 | Vetted four (drop `carry`), 1/N | +0.129 |
-| Vetted four, sharpe_tilt | +0.125 |
 | **Single best sleeve (`trend`)** | **+0.484** |
 
 Three of the five sleeves lost money out of sample. Diversification reduces
@@ -156,6 +160,7 @@ Ranking the decisions by how much Sharpe each moved on the confirmation half:
 | Concentrating in the best sleeve | **0.49** |
 | Which sleeves to fund (5 vs vetted 4) | **0.13** |
 | Which allocator (best vs worst) | 0.10 |
+| Walk-forward sleeve gating | **−0.10** |
 
 **Sleeve selection dominates capital allocation.** The sophisticated part of a
 multi-strategy system is the least important part of it.
@@ -172,6 +177,36 @@ negative.
 The defensible conclusion is not "concentrate". It is: **diversification is not
 edge, and a book of five strategies where three have no edge is worse than the
 one that does.**
+
+## 3b. Does vetting sleeves work walk-forward? No.
+
+Section 3 vets sleeves *once*, using the whole 9.5-year selection half, and the
+book improves to +0.13. That is the version of the argument that flatters it.
+
+`EdgeGated` does the same thing properly: every month, fund only the sleeves
+whose trailing two-year Newey-West t-statistic is positive, then allocate over
+the survivors with risk parity. Nothing about it peeks.
+
+| Book | Selection | Confirmation |
+|---|---|---|
+| equal_weight | 0.455 | +0.010 |
+| **gated/risk_parity** | **0.217** | **−0.090** |
+| Vetted once on the full selection half | — | +0.129 |
+
+**Walk-forward vetting destroys value.** It halves the Sharpe on the selection
+half and turns the confirmation half negative, while the identical idea applied
+as a single retrospective decision looks like it adds 0.12.
+
+The difference is entirely the decision frequency and the window. Deciding once
+with ten years of evidence is a different problem from deciding monthly with
+two, and only the second is available to someone actually running the book. A
+two-year Sharpe has a standard error near 0.7 — the gate is mostly reacting to
+noise, and it is the trailing-Sharpe tilt's failure again in binary form.
+
+This is the audit's own top recommendation — *establish that a sleeve has edge
+before funding it* — failing its own test. The recommendation is not wrong, but
+it needs evidence the walk-forward window cannot supply. Keeping the allocator
+in the default set as a measured negative result is the point.
 
 ## 4. Three things that did work
 
@@ -208,19 +243,19 @@ sleeves with no edge, not from correlations breaking.
 
 Nothing.
 
-25 configurations (5 sleeves × 5 allocators) were tested on one 19-year sample.
+30 configurations (5 sleeves × 6 allocators) were tested on one 19-year sample.
 Reporting the best cell's Sharpe is reporting the maximum of 25 correlated draws.
 
 | Candidate | Raw Sharpe | PSR vs 0 | Threshold | Deflated | BHY haircut | Survives |
 |---|---|---|---|---|---|---|
-| portfolio: inverse_vol | 0.241 | 0.856 | 0.472 | 0.154 | 0.000 | no |
-| portfolio: equal_weight | 0.239 | 0.853 | 0.472 | 0.153 | 0.000 | no |
-| best sleeve: trend | 0.450 | 0.976 | 0.472 | 0.461 | 0.303 | **no** |
+| portfolio: inverse_vol | 0.255 | 0.870 | 0.457 | 0.187 | 0.000 | no |
+| portfolio: equal_weight | 0.235 | 0.849 | 0.457 | 0.165 | 0.000 | no |
+| best sleeve: trend | 0.450 | 0.976 | 0.457 | 0.488 | 0.297 | **no** |
 
 `trend` is the only candidate whose probabilistic Sharpe clears 0.95 against
-zero — but the bar is not zero, it is the **0.472** expected maximum of 25
-zero-skill trials. Against that bar its deflated Sharpe is 0.461, and a
-Benjamini-Yekutieli haircut takes 0.450 down to **0.303**, a 33% cut.
+zero — but the bar is not zero, it is the **0.457** expected maximum of 30
+zero-skill trials. Against that bar its deflated Sharpe is 0.488, and a
+Benjamini-Yekutieli haircut takes 0.450 down to **0.297**, a 34% cut.
 
 The correct reading: this study establishes *relative* magnitudes — which
 decision matters more than which — and does not establish that any sleeve here
@@ -340,6 +375,21 @@ Three, all of the "produces plausible numbers and no error" kind:
 - **A second `PortfolioConfig` shadowed the first** in the study script,
   silently dropping both the `--throttle` flag and the volatility-scaled cost
   schedule. Caught only because toggling `--throttle` changed nothing at all.
+- **The edge gate never ran.** Its `min_observations` of 756 exceeded the
+  engine's 504-day lookback, so `run_portfolio` hit the fallback on every single
+  rebalance date and the allocator was byte-identical to equal weight. There is
+  now an `Allocator.check_window` that refuses that configuration outright,
+  because the failure mode is invisible in the output.
+- **`neutralise_within_class` was fed a NaN-filled frame**, so a class holding
+  both distributing and non-distributing assets had its mean dragged toward zero
+  by the non-payers — a lone commodity ETF that paid a coupon would have been
+  measured against a mean a third of its own yield and ranked wildly cheap. It
+  does not bite on this universe, where the commodity class pays nothing at all,
+  which is exactly why it needed a test rather than an inspection.
+- **The per-sleeve volatility target was itself partly inoperative.** At a 4x
+  cap the quietest sleeve (carry, 3.08% raw volatility) was pinned below its 10%
+  target on 36.9% of days — the portfolio-level defect reproduced one level
+  down. Raised to 6x, where it binds on 2.0%.
 - **The per-sleeve volatility scalar was applied daily**, re-trading the whole
   book every day even when no signal moved — trend went from 3.4 to 8.3 round
   trips a year, carry from 0.9 to 5.9, pure cost. The scalar now steps on the
