@@ -46,6 +46,9 @@ class SleeveContext:
     prices: pd.DataFrame          # total-return index, dates x assets
     dividends: pd.DataFrame       # long: ticker, date, amount
     cash_daily: pd.Series         # daily risk-free rate on the price calendar
+    #: ticker -> asset class. Needed by any sleeve that must neutralise the
+    #: structural ordering of asset classes before ranking across them.
+    asset_class: dict[str, str] | None = None
 
 
 def rebalance_dates(index: pd.DatetimeIndex, frequency: str) -> pd.DatetimeIndex:
@@ -110,6 +113,84 @@ def rank_scores(values: pd.DataFrame) -> pd.DataFrame:
     return demean_cross_section(centred)
 
 
+def neutralise_within_class(scores: pd.DataFrame,
+                            asset_class: dict[str, str] | None) -> pd.DataFrame:
+    """Demean scores inside each asset class before ranking across them.
+
+    Without this, a cross-sectional rank on any level-based signal is dominated
+    by the structural ordering of asset classes rather than by relative
+    cheapness. Measured on the income sleeve before this was applied: mean net
+    exposure of Credit +0.223, Real assets +0.116, Equity **-0.279**, with HYG,
+    VNQ and LQD as the largest persistent longs and QQQ, IWM, SPY the largest
+    persistent shorts.
+
+    That is not an income strategy. It is a permanent long-credit,
+    short-US-equity macro position wearing a yield label -- and the value
+    sleeve, ranking on a different signal, ended up expressing the same bet
+    (Equity -0.205), which is why the two correlated at +0.34 and why both lost
+    money across a US-equity-dominated sample.
+
+    Demeaning within class asks the question the sleeve is supposed to ask: is
+    this REIT cheap against other REITs, is this credit ETF cheap against other
+    credit. The asset-class bet, if wanted, belongs in a separate sleeve where
+    it can be sized deliberately.
+    """
+    if not asset_class:
+        return scores
+
+    out = scores.copy()
+    classes: dict[str, list[str]] = {}
+    for ticker in scores.columns:
+        classes.setdefault(asset_class.get(ticker, "_unknown"), []).append(ticker)
+
+    for members in classes.values():
+        if len(members) < 2:
+            # A single-member class carries no within-class information. Zero it
+            # rather than leaving its raw level to dominate the cross-section.
+            out[members] = 0.0
+            continue
+        block = scores[members]
+        out[members] = block.sub(block.mean(axis=1), axis=0)
+    return out
+
+
+def apply_no_trade_band(weights: pd.DataFrame, band: float) -> pd.DataFrame:
+    """Hold the existing position until the target moves more than `band`.
+
+    Turnover is the tax on a signal that changes faster than it decays. The
+    reversal sleeve here turns over 67 times a year and converts a +0.285 gross
+    Sharpe into -0.033 net: the entire effect is smaller than the cost of
+    harvesting it. A band trades only when the target has moved enough to be
+    worth the spread, which is what a desk does and what a naive
+    rebalance-to-target loop does not.
+
+    Applied per asset on the L1 distance of the whole book, so the band cannot
+    let the position drift arbitrarily far in aggregate.
+    """
+    if band <= 0.0:
+        return weights
+
+    values = weights.to_numpy(dtype=float)
+    held = np.zeros_like(values)
+    current = np.zeros(values.shape[1])
+    opened = False
+
+    for i in range(values.shape[0]):
+        target = values[i]
+        # Opening the book is not subject to the band. A unit-gross target sits
+        # exactly 1.0 from flat, so any band above 1.0 would otherwise leave the
+        # sleeve permanently at zero -- silently, with no error and a turnover
+        # of exactly nothing to give it away.
+        if not opened:
+            if np.abs(target).sum() > 0.0:
+                current = target.copy()
+                opened = True
+        elif np.abs(target - current).sum() > band:
+            current = target.copy()
+        held[i] = current
+    return pd.DataFrame(held, index=weights.index, columns=weights.columns)
+
+
 def trailing_volatility(returns: pd.DataFrame, span: int = 60,
                         min_periods: int = 30) -> pd.DataFrame:
     """EWMA volatility, annualised, using data up to and including each day."""
@@ -171,6 +252,9 @@ class Sleeve(ABC):
     name: str = "sleeve"
     rebalance: str = "monthly"
     warmup_days: int = 252
+    #: L1 distance the target book must move before the sleeve re-trades.
+    #: Zero means rebalance to target every period.
+    no_trade_band: float = 0.0
 
     @abstractmethod
     def raw_weights(self, context: SleeveContext) -> pd.DataFrame:
@@ -179,8 +263,8 @@ class Sleeve(ABC):
     def weights(self, context: SleeveContext) -> pd.DataFrame:
         """The book to hold into the next day.
 
-        The template method is where the three rules get applied uniformly, so a
-        new sleeve only has to express its idea and cannot forget the plumbing.
+        The template method is where the rules get applied uniformly, so a new
+        sleeve only has to express its idea and cannot forget the plumbing.
         """
         raw = self.raw_weights(context)
         held = hold_between_rebalances(raw, self.rebalance)
@@ -191,7 +275,11 @@ class Sleeve(ABC):
         if self.warmup_days > 0:
             held.iloc[: self.warmup_days] = 0.0
 
-        return normalise_gross(held.fillna(0.0))
+        normalised = normalise_gross(held.fillna(0.0))
+        # The band goes last, on the final book: it is a trading decision, not
+        # a signal one, and applying it before normalisation would let the held
+        # position drift away from unit gross.
+        return apply_no_trade_band(normalised, self.no_trade_band)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r}, rebalance={self.rebalance!r})"

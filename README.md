@@ -4,15 +4,24 @@ A multi-strategy systematic book: five independent strategy sleeves, five ways
 of splitting capital between them, and an honest account of what running more
 than one strategy actually bought.
 
-**The short answer: less than advertised, and on this sample, nothing.** Naive
-diversification across five standard strategies produced a **−0.26** Sharpe out
-of sample while simply running the single best sleeve produced **+0.42**.
+**The short answer: less than advertised.** Naive diversification across five
+standard strategies produced a **−0.01** Sharpe out of sample while simply
+running the single best sleeve produced **+0.48**. Vetting the sleeves first
+gets the book to **+0.13** — still a quarter of what concentration delivered.
+
+> **Revised after a structural audit** (`scripts/audit.py`, output in
+> `reports/audit_output.txt`). The first version ran unit-*gross* sleeves under
+> a portfolio-level volatility target, a raw-percentage drawdown ladder, and
+> total returns. Repairing the risk layer moved the 1/N book from **−0.26 to
+> −0.01**, the vetted book from **+0.09 to +0.13**, and took the trend sleeve to
+> **t = 2.13**. The conclusions did not change — the numbers had been depressed
+> by defects, not by the idea. See [What the audit changed](#what-the-audit-changed).
 
 ## The question
 
 "Professional traders use more than one strategy" is true, and it is usually
-where the thinking stops. This repo takes the claim apart into three separate
-questions that get answered separately, because they have different answers:
+where the thinking stops. This repo takes the claim apart into three questions
+that get answered separately, because they have different answers:
 
 1. Are the strategies actually different from each other?
 2. Does *how* you split capital between them matter?
@@ -20,21 +29,22 @@ questions that get answered separately, because they have different answers:
 
 ## The book
 
-Five sleeves, each a published idea at its literature default — none of the
-parameters was tuned on this sample, so the sleeves do not consume the
-selection half.
+Five sleeves, each a published idea at its literature default — no parameter was
+tuned on this sample, so the sleeves do not consume the selection half.
 
 | Sleeve | Idea | Rebalance |
 |---|---|---|
 | `trend` | Time-series momentum, sign of 12m excess return, inverse-vol sized | monthly |
-| `xs_momentum` | Cross-sectional 12-1 month momentum, dollar-neutral | monthly |
-| `reversal` | 5-day short-term reversal, dollar-neutral | weekly |
-| `carry` | Trailing dividend yield rank, dollar-neutral | monthly |
-| `value` | Long-horizon reversal (5y→1y), the cross-asset value proxy | quarterly |
+| `xs_momentum` | Cross-sectional 12−1 month momentum, dollar-neutral | monthly |
+| `reversal` | 5-day short-term reversal, dollar-neutral, no-trade band | weekly |
+| `carry` | Trailing dividend yield rank, class-neutralised | monthly |
+| `value` | Long-horizon reversal (5y→1y), class-neutralised | quarterly |
 
-Universe is 15 liquid ETFs across equity, rates, credit and real assets,
-2007-04 to 2026-08 — 4,877 days, deliberately including 2008. Costs are 5bps
-per unit of turnover and the vol target is 8%.
+15 liquid ETFs across equity, rates, credit and real assets, 2007-04 to 2026-08
+— 4,877 days, deliberately including 2008. Everything runs in **excess returns**
+over the daily bill rate. Costs are 5bps per unit turnover, **scaled by trailing
+volatility** (mean 5.8bps, p95 11.4bps). Sleeves are volatility-targeted to 10%
+individually; the portfolio targets 8%.
 
 Allocators: equal weight (1/N), inverse volatility, risk parity, minimum
 variance, and a trailing-Sharpe tilt. All estimated walk-forward on a trailing
@@ -44,21 +54,19 @@ two-year window; none ever sees the returns it is about to earn.
 
 | Sleeve | Gross Sharpe | Net Sharpe | t (NW) | Turnover/yr |
 |---|---|---|---|---|
-| trend | 0.367 | **0.343** | 1.67 | 3.4 |
-| xs_momentum | 0.231 | **0.209** | 1.10 | 4.4 |
-| reversal | 0.296 | **−0.028** | −0.15 | **67.5** |
-| carry | −0.253 | −0.260 | −1.28 | 0.9 |
-| value | −0.354 | −0.362 | −1.79 | 1.0 |
+| trend | 0.484 | **0.450** | **2.13** | 6.4 |
+| xs_momentum | 0.411 | **0.378** | 1.77 | 5.9 |
+| reversal | 0.285 | **−0.081** | −0.42 | **69.5** |
+| carry | −0.377 | −0.408 | −1.92 | 4.5 |
+| value | −0.165 | −0.181 | −0.78 | 2.8 |
 
-**Costs are not a rounding error.** Short-term reversal earns a 0.30 gross
-Sharpe and hands every basis point of it back in trading — 67 round trips a
-year at 5bps. It is the only sleeve whose sign is decided by the cost model, and
-a study that defaulted to zero costs would have published it as the second-best
-idea in the book.
+**Costs are not a rounding error.** Short-term reversal earns a 0.285 gross
+Sharpe and hands all of it back in trading — ~70 round trips a year. It is the
+only sleeve whose sign is decided by the cost model, and a study defaulting to
+zero costs would have published it as the third-best idea in the book.
 
-Note also what the t-statistics say: nothing here is significant. The best
-sleeve over 19 years reaches t = 1.67. That is the honest baseline against which
-the rest of this should be read.
+Only trend clears t = 2, and it does not survive a multiple-testing correction
+(section 5). That is the honest baseline against which the rest should be read.
 
 ## 1. Are the strategies actually different?
 
@@ -66,28 +74,28 @@ Not as different as five names suggests.
 
 ```
              trend  xs_momentum  reversal  carry  value
-trend        1.000        0.740    -0.049 -0.082  0.023
-xs_momentum  0.740        1.000    -0.066 -0.095 -0.053
-reversal    -0.049       -0.066     1.000 -0.221 -0.148
-carry       -0.082       -0.095    -0.221  1.000  0.341
-value        0.023       -0.053    -0.148  0.341  1.000
+trend        1.000        0.658     0.044 -0.101  0.091
+xs_momentum  0.658        1.000    -0.012 -0.176  0.079
+reversal     0.044       -0.012     1.000  0.019  0.026
+carry       -0.101       -0.176     0.019  1.000  0.369
+value        0.091        0.079     0.026  0.369  1.000
 ```
 
-**Trend following and momentum correlate at 0.74.** They appear as separate
+**Trend following and momentum correlate at 0.66.** They appear as separate
 entries on every list of trading strategies, and they are built on the same
-12-month signal — one takes its sign, the other takes its cross-sectional rank.
-Owning both is close to owning one twice.
+12-month signal — one takes its sign, the other its cross-sectional rank. Owning
+both is close to owning one twice.
 
-Measured properly, the five sleeves are **3.10 independent bets**, not five.
+Measured properly, the five sleeves are **2.54 independent bets**, not five.
 
 That number is the Meucci effective-number-of-bets: diagonalise the covariance,
-express the book as exposures to the resulting uncorrelated factors, and take
-the entropy of their variance contributions. The obvious alternative — entropy
-of each sleeve's marginal risk contribution — is what this repo computed first,
-and it reported **4.29**. It was wrong, and wrong in the flattering direction:
+express the book as exposures to the resulting uncorrelated factors, take the
+entropy of their variance contributions. The obvious alternative — entropy of
+each sleeve's marginal risk contribution — is what this repo computed first, and
+it reported 4.29 on the original book. It was wrong in the flattering direction:
 five *perfectly correlated* sleeves at equal weight each contribute a fifth of
-the risk, so that version scores 5 for a book holding one bet. There is a test
-asserting it now returns 1.
+the risk, so that version scores 5 for a book holding one bet. A test asserts it
+now returns 1.
 
 ## 2. Does the allocator matter?
 
@@ -97,31 +105,32 @@ Barely, and less than any other decision in the study.
 
 | Allocator | Sharpe | t (NW) |
 |---|---|---|
-| equal_weight | 0.355 | 1.18 |
-| **inverse_vol** | **0.562** | 1.88 |
-| risk_parity | 0.529 | 1.77 |
-| min_variance | 0.035 | 0.10 |
-| sharpe_tilt | 0.484 | 1.53 |
+| equal_weight | 0.490 | 1.64 |
+| **inverse_vol** | **0.497** | 1.72 |
+| risk_parity | 0.470 | 1.58 |
+| min_variance | −0.065 | −0.20 |
+| sharpe_tilt | 0.466 | 1.59 |
 
 **Confirmation half** (2016-12 to 2026-08), scored once:
 
 | Allocator | Sharpe | t (NW) |
 |---|---|---|
-| equal_weight | −0.262 | −0.84 |
-| inverse_vol *(chosen)* | −0.215 | −0.67 |
-| risk_parity | −0.218 | −0.68 |
-| min_variance | −0.104 | −0.32 |
-| sharpe_tilt | −0.023 | −0.07 |
+| equal_weight | −0.005 | −0.02 |
+| inverse_vol *(chosen)* | −0.037 | −0.12 |
+| risk_parity | −0.039 | −0.13 |
+| min_variance | −0.109 | −0.37 |
+| sharpe_tilt | −0.009 | −0.03 |
 
-Every allocator is negative. The one picked on the selection half was not the
-best on the confirmation half, and the whole spread between the best and worst
-allocator is **0.24 Sharpe** — smaller than the effect of a single decision
-about *which sleeves to fund at all* (below).
+The allocator picked on the selection half was not the best on the confirmation
+half, and the entire spread from best to worst is **0.10 Sharpe** — far smaller
+than the effect of deciding *which sleeves to fund at all*.
 
 This reproduces DeMiguel, Garlappi and Uppal (2009) on a fresh dataset: the
 estimation error in an optimiser's inputs costs about as much as the
 optimisation gains. Minimum variance, which uses the most estimated quantities,
-is the worst on the selection half by a distance.
+is worst in both halves — and structurally the least stable, with a p95 monthly
+weight change of 0.173 against risk parity's 0.091 and a mean Herfindahl of
+0.455 against 0.251. **If you are going to optimise at all, use ERC.**
 
 ## 3. Does running five beat running one?
 
@@ -129,117 +138,262 @@ No — and this is the finding.
 
 | Book | Confirmation Sharpe |
 |---|---|
-| All five sleeves, 1/N | **−0.262** |
-| Vetted four (drop `value`), 1/N | +0.091 |
-| Vetted four, inverse vol | +0.126 |
-| **Single best sleeve (`trend`)** | **+0.415** |
+| All five sleeves, 1/N | **−0.005** |
+| Vetted four (drop `carry`), 1/N | +0.129 |
+| Vetted four, sharpe_tilt | +0.125 |
+| **Single best sleeve (`trend`)** | **+0.484** |
 
 Three of the five sleeves lost money out of sample. Diversification reduces
-variance; it does not manufacture expected return. Adding a −0.58 Sharpe sleeve
-to a +0.42 Sharpe sleeve produces something worse than the good one, no matter
-how elegantly the capital is split, and every allocator here was reduced to
-choosing among mostly-bad options.
+variance; it does not manufacture expected return. Adding a −0.39 Sharpe sleeve
+to a +0.48 Sharpe sleeve produces something worse than the good one however
+elegantly the capital is split, and every allocator here was reduced to choosing
+among mostly-bad options.
 
-Ranking the three decisions by how much Sharpe they moved on the confirmation
-half:
+Ranking the decisions by how much Sharpe each moved on the confirmation half:
 
 | Decision | Effect |
 |---|---|
-| Which sleeves to fund (5 vs vetted 4) | **0.35** |
-| Concentrating in the best sleeve | **0.32** |
-| Which allocator (best vs worst) | 0.24 |
+| Concentrating in the best sleeve | **0.49** |
+| Which sleeves to fund (5 vs vetted 4) | **0.13** |
+| Which allocator (best vs worst) | 0.10 |
 
 **Sleeve selection dominates capital allocation.** The sophisticated part of a
 multi-strategy system is the least important part of it.
 
-### The honest caveat on that
+### The honest caveat
 
 "Just run trend" is what this sample says, and the sample is one draw. `trend`
 was best on both halves, but with five sleeves that happens 20% of the time by
-chance alone, and its t-statistic is 1.33 on the confirmation half — not
-significant. Sleeve performance was only *partly* persistent: three of five
-sleeves kept their sign across the split, and both `reversal` and `carry` went
-from mildly positive to clearly negative.
+chance, and its confirmation-half t-statistic is 1.52 — not significant. Sleeve
+performance was only partly persistent: three of five kept their sign across the
+split, and both `reversal` and `value` flipped from mildly positive to clearly
+negative.
 
-So the defensible conclusion is not "concentrate". It is: **diversification is
-not edge, and a book of five strategies where three have no edge is worse than
-the one that does.**
+The defensible conclusion is not "concentrate". It is: **diversification is not
+edge, and a book of five strategies where three have no edge is worse than the
+one that does.**
 
-## 4. Two things that did work
+## 4. Three things that did work
 
-**Netting the sleeves into one book** rather than averaging their return
-streams. When trend is long SPY and reversal is short it, the netted book trades
-neither — the crossing is free. Worth **7.7% of turnover** here, and it is a
-genuine operational edge with nothing to do with signal quality. Modest because
-these sleeves mostly trade different things; it would be much larger on a book
-of same-asset strategies.
+**Netting sleeves into one book** rather than averaging return streams. When
+trend is long SPY and reversal is short it, the netted book trades neither — the
+crossing is free. Worth **14.4% of turnover**, a genuine operational edge with
+nothing to do with signal quality.
 
-**Correlations rose in stress**, exactly as the folklore says, and the effect is
-small enough to be worth quantifying rather than repeating:
+**Volatility-targeting each sleeve before allocating.** This is what makes the
+allocator compare like with like: unit *gross* is not unit *risk*, so an
+equal-weight allocation over unequal-volatility sleeves was already an implicit
+risk bet.
+
+**Class-neutralising the carry and value sleeves.** Before it, carry's mean net
+exposure was Equity **−0.279**, Credit **+0.223**, Real assets **+0.116**, with
+HYG, VNQ and LQD as its largest persistent longs — a permanent long-credit,
+short-US-equity macro position wearing a yield label. After neutralisation those
+collapse to **−0.037 / −0.004 / +0.009**. Its Sharpe did not improve; its
+*interpretability* did. The sleeve's failure is now a statement about carry
+rather than about a hidden equity short.
+
+**Correlations in stress**, for completeness — the folklore is directionally
+right and quantitatively small:
 
 | | Calm | SPY drawdown >10% |
 |---|---|---|
-| Mean pairwise correlation | −0.014 | +0.079 |
-| Effective bets | 2.66 | 2.72 |
+| Mean pairwise correlation | +0.113 | +0.075 |
+| Effective bets | 2.72 | 2.01 |
 
-Correlations do rise. But on this book the diversification loss is marginal —
-the sleeves that hurt were the ones with no edge, not the ones that stopped
-diversifying.
+Effective bets fall by a quarter under stress. The damage to this book came from
+sleeves with no edge, not from correlations breaking.
 
-## Method
+## 5. What survives a multiple-testing correction
 
-- **Selection/confirmation split by date, decided once.** The allocator is
-  chosen on the first half; the second half is scored once and not returned to.
-  Picking the best of five allocators on the full sample and reporting its
-  number is publishing the maximum of five noisy draws.
-- **Walk-forward allocation.** Each allocator sees a trailing two-year window
-  ending on the decision date. Nothing after it can reach back.
-- **Costs charged on turnover**, on the day the book changes, including the
-  initial trade from flat.
-- **Newey-West t-statistics.** A monthly-rebalanced book holds the same position
-  for twenty days, so daily returns are autocorrelated and the plain
-  t-statistic overstates the evidence.
-- **Total returns**, so the bond and REIT sleeves are not penalised for paying
-  their yield out.
+Nothing.
+
+25 configurations (5 sleeves × 5 allocators) were tested on one 19-year sample.
+Reporting the best cell's Sharpe is reporting the maximum of 25 correlated draws.
+
+| Candidate | Raw Sharpe | PSR vs 0 | Threshold | Deflated | BHY haircut | Survives |
+|---|---|---|---|---|---|---|
+| portfolio: inverse_vol | 0.241 | 0.856 | 0.472 | 0.154 | 0.000 | no |
+| portfolio: equal_weight | 0.239 | 0.853 | 0.472 | 0.153 | 0.000 | no |
+| best sleeve: trend | 0.450 | 0.976 | 0.472 | 0.461 | 0.303 | **no** |
+
+`trend` is the only candidate whose probabilistic Sharpe clears 0.95 against
+zero — but the bar is not zero, it is the **0.472** expected maximum of 25
+zero-skill trials. Against that bar its deflated Sharpe is 0.461, and a
+Benjamini-Yekutieli haircut takes 0.450 down to **0.303**, a 33% cut.
+
+The correct reading: this study establishes *relative* magnitudes — which
+decision matters more than which — and does not establish that any sleeve here
+has edge.
+
+## What the audit changed
+
+`scripts/audit.py` ran the architecture against its own specification and
+measured the failure modes. Seven fixes, in the priority order the audit set.
+
+### P0 — the volatility target was inoperative
+
+The netted five-sleeve book ran at **2.40% median volatility** and needed
+**4.15×** leverage to reach a 10% target. With `L_max = 1.5` the cap bound on
+**95.3% of days**: the "dynamic leverage scalar" was a constant.
+
+Cause: with unit-gross dollar-neutral sleeves averaged at 1/N, ~51% of gross
+cancels on netting, so the book holds ~0.5 gross exposure. A low-volatility book
+is the arithmetic consequence of the netting.
+
+Fix: volatility-target each sleeve *before* allocating, plus a realistic `L_max`
+and a separate gross cap. Measured:
+
+| Configuration | Realised vol | Cap binds |
+|---|---|---|
+| 10% target, L_max 1.5, no per-sleeve | 5.30% | **92.0%** |
+| 10% target, L_max 1.5, per-sleeve 10% | 7.33% | 85.5% |
+| **8% target, L_max 3.0, per-sleeve 10%** | **8.16%** | **2.9%** |
+
+Both changes are needed — per-sleeve targeting alone cannot escape a 1.5 cap.
+
+### P0 — the drawdown ladder's severe rung was untested
+
+The specified 10%/15%/20% ladder **never reached its 20% rung in 19 years**,
+because the shallower rungs had already cut risk. The rule most likely to cause
+a catastrophic mistake — go to cash, re-enter on an undefined "20-day recovery
+trigger" — was untested rather than proven safe. Meanwhile the ladder spent
+**39.6% of days de-risked** and cost **3.9pp through 2022**, a year the book
+finished up 13%.
+
+Fix (`risk.adaptive_throttle`), four changes each targeting a measured failure:
+
+1. **Volatility-adjusted depth.** 15% off the high is 0.75σ at 20% vol and 1.9σ
+   at 8%; only the second is information.
+2. **Measured on the shadow (unthrottled) book.** Reading its own throttled
+   curve is a ratchet — cutting risk slows recovery, which keeps the drawdown
+   deep, which keeps the book cut. Re-entry then needs no timer.
+3. **Continuous, not stepped.** Rungs guarantee a book oscillating around a
+   threshold trades on every crossing.
+4. **A floor, never zero.** A book at zero exposure cannot earn its way back.
+
+| Through | No throttle | Spec ladder | Adaptive |
+|---|---|---|---|
+| COVID 2020 | −7.26% | −0.22% | −2.21% |
+| **Rate hikes 2022** | **+10.56%** | **−2.77%** | **+3.11%** |
+| Full-sample Sharpe | 0.239 | 0.246 | **0.256** |
+| Max drawdown | −38.0% | −25.2% | −25.6% |
+
+The 2022 row is the whipsaw fix: a 5.9pp swing from recognising that the
+drawdown was unremarkable relative to the volatility of the moment.
+
+**It is still off by default.** Over the confirmation half the throttle takes
+1/N from −0.005 to −0.158: it is insurance that pays in a genuine crisis and
+costs money the rest of the time, and the confirmation half's only crisis was a
+V-shaped recovery — the worst case for any de-risking rule.
+
+### P1 — the 126-day covariance window was too slow
+
+Trading days to register a 50% rise in volatility:
+
+| Episode | 21d | 63d | **126d** | 252d |
+|---|---|---|---|---|
+| GFC 2008 | 11 | 14 | **22** | 32 |
+| COVID 2020 | 14 | 21 | **40** | never |
+| Volmageddon 2018 | 14 | 15 | **never** | never |
+| Rate hikes 2022 | never | never | never | never |
+
+Fix: `risk.asymmetric_volatility` — the max of a 20-day and a 60-day EWMA, so
+the book **de-levers fast and re-levers slow**. Volatility clusters, so a quiet
+week after a crisis is more likely to be followed by another violent one than
+the fast estimate alone implies; re-levering on it is what turns one drawdown
+into two.
+
+2022 registers on *no* window, which is the point rather than a failure:
+volatility targeting defends against spikes, not slow grinds.
+
+### P1 — the yield and value sleeves were the same macro bet
+
+Covered in section 4. Class-neutralisation collapsed carry's equity exposure
+from −0.279 to −0.037.
+
+### P1 — reversal's no-trade band
+
+The signal's IC decays from **+0.026 fresh to +0.001 after five days**, and the
+sleeve's own weight autocorrelation is −0.018 at 5 days: the position wanted next
+week is uncorrelated with the one held. The band is calibrated from the L1
+distance between consecutive target books (median 1.32, p10 0.75) — a band below
+~0.75 never binds, which is why an initial 0.60 changed nothing. At 1.0 turnover
+falls 67→58 and net Sharpe goes −0.028→+0.085 in isolation.
+
+### P2 — Sharpe tilt lengthened, excess returns, scaled costs, deflation
+
+The 6-month tilt was measurably chasing: allocated weight correlated **+0.13**
+with a sleeve's trailing returns and **−0.10** with its next month, with four of
+five sleeves negative against the future. A 126-observation Sharpe has a standard
+error of ~1.41 Sharpe units. Lengthened to three years; `RiskParity` is now the
+documented default.
+
+Everything runs in excess returns (the sample spans 0% and 5%+ policy rates),
+costs scale with trailing volatility, and `src/deflated.py` implements the
+Bailey–López de Prado deflated Sharpe and Harvey–Liu haircuts.
+
+## Bugs found while fixing
+
+Three, all of the "produces plausible numbers and no error" kind:
+
+- **A second `PortfolioConfig` shadowed the first** in the study script,
+  silently dropping both the `--throttle` flag and the volatility-scaled cost
+  schedule. Caught only because toggling `--throttle` changed nothing at all.
+- **The per-sleeve volatility scalar was applied daily**, re-trading the whole
+  book every day even when no signal moved — trend went from 3.4 to 8.3 round
+  trips a year, carry from 0.9 to 5.9, pure cost. The scalar now steps on the
+  sleeve's own rebalance schedule.
+- **The no-trade band could never open the book.** A unit-gross target sits
+  exactly 1.0 from flat, so any band above 1.0 held the sleeve at zero forever —
+  with a turnover of exactly nothing to give it away.
+
+Earlier passes also produced two measurement errors worth recording: the
+covariance-window comparison graded each estimator against *its own* peak (not
+comparable across window lengths), and the reversal IC was first quoted only on
+monthly sampling, where it is negative, when the better-powered weekly estimate
+is positive and neither clears two standard errors.
 
 ## Tests
 
-52 tests. The important ones corrupt the future and assert the past does not
-move:
+79 tests, no network. The important ones corrupt the future and assert the past
+does not move:
 
 ```
 tests/test_no_lookahead.py   sleeves and the walk-forward allocator, under
                              asset-specific future corruption
 tests/test_mechanics.py      the shift, cost timing, netting, allocator
                              properties, shrinkage, effective bets
+tests/test_fixes.py          every audit fix, plus the three bugs above
 ```
 
 Two test bugs worth naming, both of which made a test pass while testing
 nothing:
 
 - **The future corruption was uniform.** Multiplying every future price by 3
-  leaves every cross-sectional *rank* untouched, so the four dollar-neutral
-  sleeves produced byte-identical weights and the leak test was vacuous for
-  them. The corruption is now asset-specific.
-- **The shrinkage test used independent columns.** With genuinely independent
-  data the constant-correlation target is already correct, so Ledoit-Wolf
-  shrinkage saturates at 1.0 for every sample size and "shrinkage rises when
-  data is scarce" cannot be observed. It needs heterogeneous correlation, and
-  now uses two blocks.
+  leaves cross-sectional *ranks* untouched, so the four dollar-neutral sleeves
+  produced byte-identical weights and the leak test was vacuous for them.
+- **The shrinkage test used independent columns.** With independent data the
+  constant-correlation target is already correct, so Ledoit-Wolf shrinkage
+  saturates at 1.0 for every sample size and the property cannot be observed.
 
 ## Layout
 
 ```
 src/universe.py          15 ETFs across four asset classes, and why ETFs
-src/data.py              cached fetch; the cache is for reproducibility
-src/sleeves/base.py      the three rules every sleeve obeys, enforced centrally
+src/data.py              cached fetch, excess returns
+src/sleeves/base.py      the rules every sleeve obeys, enforced centrally;
+                         class neutralisation, no-trade band
 src/sleeves/strategies.py the five sleeves
-src/allocators.py        1/N, inverse vol, risk parity, min variance, Sharpe tilt
-src/risk.py              Ledoit-Wolf shrinkage, vol targeting, drawdown throttle,
-                         diversification ratio, effective bets
-src/portfolio.py         walk-forward combination, netting, the risk overlay
-src/backtest.py          the shift, the costs, the metrics
-scripts/run_study.py     the whole study
+src/allocators.py        1/N, inverse vol, ERC, min variance, Sharpe tilt
+src/risk.py              Ledoit-Wolf shrinkage, EWMA and asymmetric volatility,
+                         adaptive throttle, diversification ratio, effective bets
+src/portfolio.py         per-sleeve vol targeting, walk-forward combination,
+                         netting, risk overlay, gross cap
+src/backtest.py          the shift, volatility-scaled costs, metrics
+src/deflated.py          deflated Sharpe and multiple-testing haircuts
+scripts/run_study.py     the study
+scripts/audit.py         the structural audit that drove the fixes
 ```
 
 ## Running it
@@ -248,31 +402,27 @@ scripts/run_study.py     the whole study
 python -m venv .venv && .venv/Scripts/activate
 pip install -r requirements.txt
 
-python -m scripts.fetch_data      # once; caches to data/
-python -m scripts.run_study
-pytest -q                         # 52 tests, no network
+python -m scripts.fetch_data          # once; caches to data/
+python -m scripts.run_study           # add --throttle, --flat-costs to compare
+python -m scripts.audit               # the failure-mode measurements
+pytest -q                             # 79 tests
 ```
 
-Full output is in `reports/study_output.txt`; the numbers above come from
-`reports/study.json`.
+Output in `reports/study_output.txt` and `reports/audit_output.txt`; machine-readable
+numbers in `reports/study.json` and `reports/audit.json`.
 
 ## Limits, stated plainly
 
 - **One sample, one universe.** 19 years of 15 ETFs is a single draw from a
-  regime that was dominated by US equities. `value` and `carry` were
-  structurally short US tech for the whole period, which is most of why they
-  lost. A different sample could reverse the ranking of every sleeve.
-- **Nothing here is statistically significant.** The best result in the study is
-  t = 1.67. The comparisons are informative about *relative* magnitudes — which
-  decision matters more — not about whether any sleeve has an edge.
-- **15 assets is a thin cross-section.** The four dollar-neutral sleeves rank
-  fifteen things; the same ideas over 500 names would be less noisy and might
-  well work better.
-- **One cost assumption.** 5bps per unit turnover is reasonable for liquid ETFs
-  and is applied uniformly; a real book faces spreads that widen exactly when
-  the sleeves want to trade.
+  US-equity-dominated regime. `value` and `carry` were structurally short US
+  equity for the whole period, which is most of why they lost.
+- **Nothing is statistically significant** after correcting for 25 trials. The
+  comparisons are informative about relative magnitudes, not about edge.
+- **15 assets is a thin cross-section** for four dollar-neutral sleeves.
 - **The value sleeve is a proxy.** Long-horizon reversal is what cross-asset
   factors use when a book value does not exist for gold, but it is not
-  fundamental value, and it should not be read as a test of value investing.
+  fundamental value and should not be read as a test of value investing.
 - **No shorting frictions.** Borrow costs and short availability are ignored,
   which flatters the four dollar-neutral sleeves.
+- **The commodity carry signal is not real carry.** DBC's roll is already inside
+  its price series and cannot be separated without futures-curve data.

@@ -41,12 +41,39 @@ class BacktestResult:
         return performance_metrics(self.returns, self.turnover, name=self.name)
 
 
-def run(weights: pd.DataFrame, returns: pd.DataFrame, cost_bps: float = 5.0,
-        name: str = "") -> BacktestResult:
+def volatility_scaled_costs(base_bps: float, returns: pd.Series,
+                            sensitivity: float = 1.0, cap: float = 4.0,
+                            window: int = 63) -> pd.Series:
+    """Transaction costs that widen with market volatility.
+
+    A flat cost assumption understates precisely where it matters. ETF spreads
+    widen three- to fivefold in the weeks a systematic book most wants to
+    rebalance, and the risk overlay generates its largest trades in exactly
+    those weeks -- so a constant rate flatters every de-risking rule in the
+    system.
+
+    Cost scales with trailing volatility relative to its own median, capped so
+    a single crisis cannot produce an absurd rate. Crude, but directionally
+    right, which a constant is not.
+    """
+    vol = returns.rolling(window, min_periods=window // 3).std()
+    median = float(vol.median())
+    if not np.isfinite(median) or median <= 0:
+        return pd.Series(base_bps, index=returns.index)
+    ratio = (vol / median).fillna(1.0)
+    multiplier = (1.0 + sensitivity * (ratio - 1.0)).clip(lower=0.5, upper=cap)
+    return (base_bps * multiplier).rename("cost_bps")
+
+
+def run(weights: pd.DataFrame, returns: pd.DataFrame,
+        cost_bps: float | pd.Series = 5.0, name: str = "") -> BacktestResult:
     """Apply a weight book to asset returns, charging costs on turnover.
 
     `weights` is indexed by the day the position is DECIDED. The shift to the
     day it is held happens here, once.
+
+    `cost_bps` may be a constant or a per-day series (see
+    :func:`volatility_scaled_costs`).
     """
     aligned = weights.reindex(returns.index).fillna(0.0)
     held = aligned.shift(1).fillna(0.0)
@@ -62,14 +89,16 @@ def run(weights: pd.DataFrame, returns: pd.DataFrame, cost_bps: float = 5.0,
 
     # Shifted to match: a trade at the close of day t is paid out of the return
     # earned from t to t+1, which is the same return the new position earns.
-    costs = turnover.shift(1).fillna(0.0) * (cost_bps / 10_000.0)
+    rate = (cost_bps.reindex(returns.index).ffill().fillna(0.0)
+            if isinstance(cost_bps, pd.Series) else pd.Series(cost_bps, index=returns.index))
+    costs = turnover.shift(1).fillna(0.0) * (rate / 10_000.0)
 
     return BacktestResult(
         returns=(gross - costs).rename(name or "net"),
         gross_returns=gross.rename(name or "gross"),
         turnover=turnover.rename("turnover"),
         weights=held,
-        cost_bps=cost_bps,
+        cost_bps=float(rate.mean()),
         name=name,
     )
 

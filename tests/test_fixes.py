@@ -1,0 +1,368 @@
+"""Regressions for the audit fixes.
+
+Each test corresponds to a defect that was measured on the real book, and
+several correspond to bugs introduced *while* fixing something else. Those are
+the valuable ones: a vol-targeting layer that quietly quintuples turnover, or a
+no-trade band that silently holds the book at zero forever, produce plausible
+numbers and no error.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from src import backtest, data, deflated
+from src.allocators import TrailingSharpeTilt
+from src.portfolio import PortfolioConfig, sleeve_books, vol_target_sleeves
+from src.risk import (
+    adaptive_throttle,
+    asymmetric_volatility,
+    ewma_volatility,
+    volatility_adjusted_drawdown,
+)
+from src.sleeves.base import (
+    Sleeve,
+    SleeveContext,
+    apply_no_trade_band,
+    neutralise_within_class,
+)
+
+
+class TestAsymmetricVolatility:
+    def test_reacts_to_a_spike_faster_than_a_long_window(self):
+        """The 126-day window took 40 days to register COVID; 21 took 14."""
+        # A 3x regime change, not 8x. A violent enough spike crosses any
+        # threshold on any window within days, which tests nothing -- the
+        # question is which estimator notices a realistic shift first.
+        calm = np.random.default_rng(1).normal(0, 0.005, 500)
+        spike = np.random.default_rng(2).normal(0, 0.015, 60)
+        series = pd.Series(np.concatenate([calm, spike]))
+
+        fast = asymmetric_volatility(series, 20, 60)
+        slow = series.rolling(126, min_periods=40).std() * np.sqrt(252)
+
+        pre = float(fast.iloc[499])
+        target = pre * 1.5
+
+        def days_to_react(estimate):
+            episode = estimate.iloc[500:]
+            reached = episode[episode >= target]
+            return len(episode) if reached.empty else int(episode.index.get_loc(reached.index[0]))
+
+        assert days_to_react(fast) < days_to_react(slow)
+
+    def test_delevers_fast_and_relevers_slow(self):
+        """The asymmetry, stated as a property rather than assumed."""
+        calm_before = np.random.default_rng(3).normal(0, 0.004, 300)
+        crisis = np.random.default_rng(4).normal(0, 0.030, 60)
+        calm_after = np.random.default_rng(5).normal(0, 0.004, 200)
+        series = pd.Series(np.concatenate([calm_before, crisis, calm_after]))
+
+        estimate = asymmetric_volatility(series, 20, 60)
+        fast_only = ewma_volatility(series, 20)
+
+        # Entering the crisis the two agree closely -- the fast one leads.
+        entry = slice(300, 340)
+        assert estimate.iloc[entry].mean() == pytest.approx(fast_only.iloc[entry].mean(), rel=0.15)
+
+        # Leaving it, the asymmetric estimate stays HIGHER: it will not re-lever
+        # until the slow estimate has come down too.
+        exit_window = slice(370, 450)
+        assert estimate.iloc[exit_window].mean() > fast_only.iloc[exit_window].mean()
+
+    def test_never_below_the_fast_estimate(self):
+        series = pd.Series(np.random.default_rng(6).normal(0, 0.01, 500))
+        estimate = asymmetric_volatility(series, 20, 60)
+        assert (estimate.dropna() >= ewma_volatility(series, 20).dropna() - 1e-12).all()
+
+
+class TestVolatilityAdjustedDrawdown:
+    def test_same_percentage_depth_scores_differently_by_regime(self):
+        """15% off the high is a 0.75-sigma event at 20% vol and 1.9-sigma at 8%.
+
+        A ladder on raw percentage cannot tell those apart, which is why the
+        spec version spent 39.6% of days de-risked.
+        """
+        equity = pd.Series([1.0, 1.0, 0.85], index=pd.bdate_range("2020-01-01", periods=3))
+        quiet = pd.Series(0.08, index=equity.index)
+        wild = pd.Series(0.20, index=equity.index)
+
+        calm_depth = volatility_adjusted_drawdown(equity, quiet).iloc[-1]
+        wild_depth = volatility_adjusted_drawdown(equity, wild).iloc[-1]
+        assert calm_depth > 2.0 * wild_depth
+
+    def test_no_drawdown_is_zero_sigma(self):
+        equity = pd.Series([1.0, 1.1, 1.2], index=pd.bdate_range("2020-01-01", periods=3))
+        vol = pd.Series(0.10, index=equity.index)
+        assert (volatility_adjusted_drawdown(equity, vol) == 0.0).all()
+
+
+class TestAdaptiveThrottle:
+    @pytest.fixture
+    def drawdown_path(self):
+        """Calm rise, a real drawdown, then a full recovery.
+
+        The first version used a plain random walk for the calm phase, which
+        throws off 12% drawdowns of its own accord -- so the throttle was
+        correctly cutting during what the test called the quiet period. A
+        drawdown test needs a segment with no drawdown in it.
+        """
+        dates = pd.bdate_range("2020-01-01", periods=400)
+        rng = np.random.default_rng(7)
+        returns = pd.Series(0.0, index=dates)
+        returns.iloc[:150] = np.abs(rng.normal(0.0008, 0.0015, 150))   # no drawdown
+        returns.iloc[150:200] = rng.normal(0.0002, 0.004, 50)
+        returns.iloc[200:250] = rng.normal(-0.004, 0.005, 50)          # the selloff
+        returns.iloc[250:] = np.abs(rng.normal(0.0018, 0.002, 150))    # recovery
+        return returns
+
+    def test_cuts_exposure_in_a_drawdown_and_restores_it_after(self, drawdown_path):
+        vol = asymmetric_volatility(drawdown_path, 20, 60)
+        throttle = adaptive_throttle(drawdown_path, vol)
+
+        assert throttle.iloc[:150].mean() > 0.95, "no cutting before the drawdown"
+        assert throttle.iloc[230:260].min() < 0.8, "must cut during the drawdown"
+
+    def test_never_reaches_zero(self, drawdown_path):
+        """The spec cut to cash with an undefined recovery trigger. A book at
+        zero cannot earn its way back."""
+        vol = asymmetric_volatility(drawdown_path, 20, 60)
+        throttle = adaptive_throttle(drawdown_path, vol, floor=0.30)
+        assert throttle.min() >= 0.30 - 1e-12
+
+    def test_is_continuous_not_stepped(self, drawdown_path):
+        """Rungs guarantee a book oscillating around a threshold trades on every
+        crossing. A ramp has no boundary to oscillate across."""
+        vol = asymmetric_volatility(drawdown_path, 20, 60)
+        throttle = adaptive_throttle(drawdown_path, vol)
+        distinct = throttle.round(4).nunique()
+        assert distinct > 20, f"only {distinct} distinct exposures -- looks stepped"
+
+    def test_reads_the_shadow_book_so_it_cannot_ratchet(self, drawdown_path):
+        """Given the SAME shadow returns, the throttle is identical regardless
+        of what exposure was actually applied. That is what breaks the feedback
+        trap: cutting risk cannot deepen the measured drawdown."""
+        vol = asymmetric_volatility(drawdown_path, 20, 60)
+        first = adaptive_throttle(drawdown_path, vol)
+        # Whatever the book actually earned, the trigger sees the shadow.
+        second = adaptive_throttle(drawdown_path, vol)
+        pd.testing.assert_series_equal(first, second)
+        assert first.iloc[-1] > first.iloc[250], "must recover once the shadow does"
+
+
+class TestNoTradeBand:
+    def test_opening_the_book_is_not_blocked_by_the_band(self):
+        """A unit-gross target sits exactly 1.0 from flat, so a band above 1.0
+        would otherwise leave the sleeve permanently at zero -- silently, with
+        a turnover of exactly nothing to give it away."""
+        dates = pd.bdate_range("2020-01-01", periods=10)
+        weights = pd.DataFrame({"A": [0.5] * 10, "B": [-0.5] * 10}, index=dates)
+        held = apply_no_trade_band(weights, band=1.8)
+        assert held.abs().sum(axis=1).iloc[-1] == pytest.approx(1.0)
+
+    def test_holds_through_small_moves_and_trades_on_large_ones(self):
+        dates = pd.bdate_range("2020-01-01", periods=4)
+        weights = pd.DataFrame({
+            "A": [1.0, 1.02, 1.04, -1.0],
+            "B": [0.0, 0.0, 0.0, 0.0],
+        }, index=dates)
+        held = apply_no_trade_band(weights, band=0.5)
+        assert held["A"].iloc[1] == pytest.approx(1.0), "small drift must not trade"
+        assert held["A"].iloc[2] == pytest.approx(1.0)
+        assert held["A"].iloc[3] == pytest.approx(-1.0), "a full flip must trade"
+
+    def test_reduces_turnover_on_a_fast_signal(self):
+        rng = np.random.default_rng(11)
+        dates = pd.bdate_range("2020-01-01", periods=500)
+        raw = pd.DataFrame(rng.normal(0, 1, (500, 4)), index=dates, columns=list("ABCD"))
+        raw = raw.div(raw.abs().sum(axis=1), axis=0)
+
+        unbanded = raw.diff().abs().sum(axis=1).mean()
+        banded = apply_no_trade_band(raw, 1.0).diff().abs().sum(axis=1).mean()
+        assert banded < unbanded * 0.9
+
+    def test_zero_band_is_a_no_op(self):
+        rng = np.random.default_rng(12)
+        raw = pd.DataFrame(rng.normal(0, 1, (50, 3)),
+                           index=pd.bdate_range("2020-01-01", periods=50), columns=list("ABC"))
+        pd.testing.assert_frame_equal(apply_no_trade_band(raw, 0.0), raw)
+
+
+class TestClassNeutralisation:
+    def test_removes_the_asset_class_bet(self):
+        """Carry's mean net equity exposure was -0.279 before this, with HYG,
+        VNQ and LQD its largest persistent longs -- a macro position wearing a
+        yield label."""
+        dates = pd.bdate_range("2020-01-01", periods=5)
+        # Credit names score structurally high, equities structurally low.
+        scores = pd.DataFrame({
+            "HYG": 5.0, "LQD": 4.5,          # Credit
+            "SPY": 1.0, "QQQ": 0.8,          # Equity
+        }, index=dates)
+        classes = {"HYG": "Credit", "LQD": "Credit", "SPY": "Equity", "QQQ": "Equity"}
+
+        neutral = neutralise_within_class(scores, classes)
+        assert neutral[["HYG", "LQD"]].sum(axis=1).abs().max() < 1e-12
+        assert neutral[["SPY", "QQQ"]].sum(axis=1).abs().max() < 1e-12
+        # Within class the ordering survives -- that is the signal being kept.
+        assert (neutral["HYG"] > neutral["LQD"]).all()
+        assert (neutral["SPY"] > neutral["QQQ"]).all()
+
+    def test_single_member_class_is_zeroed_not_left_raw(self):
+        dates = pd.bdate_range("2020-01-01", periods=3)
+        scores = pd.DataFrame({"GLD": 9.0, "SPY": 1.0, "QQQ": 2.0}, index=dates)
+        classes = {"GLD": "RealAsset", "SPY": "Equity", "QQQ": "Equity"}
+        neutral = neutralise_within_class(scores, classes)
+        assert (neutral["GLD"] == 0.0).all(), "a lone member carries no within-class signal"
+
+    def test_no_class_map_is_a_no_op(self):
+        scores = pd.DataFrame({"A": [1.0], "B": [2.0]})
+        pd.testing.assert_frame_equal(neutralise_within_class(scores, None), scores)
+
+
+class TestSleeveVolTargeting:
+    @pytest.fixture
+    def synthetic(self):
+        rng = np.random.default_rng(21)
+        dates = pd.bdate_range("2010-01-01", periods=1500)
+        assets = [f"A{i}" for i in range(6)]
+        steps = rng.normal(0.0003, 0.011, size=(len(dates), len(assets)))
+        prices = pd.DataFrame(100 * np.exp(np.cumsum(steps, axis=0)), index=dates, columns=assets)
+        return prices, prices.pct_change().iloc[1:]
+
+    class _Constant(Sleeve):
+        name = "constant"
+        rebalance = "monthly"
+        warmup_days = 60
+
+        def raw_weights(self, context):
+            frame = pd.DataFrame(0.0, index=context.prices.index, columns=context.prices.columns)
+            frame.iloc[:, 0] = 1.0
+            return frame
+
+    def test_does_not_add_daily_turnover(self, synthetic):
+        """The bug this caught: a vol scalar recomputed daily re-trades the whole
+        book daily even when no signal moved. Applied naively it took trend from
+        3.4 to 8.3 round trips a year and carry from 0.9 to 5.9 -- pure cost.
+        """
+        prices, returns = synthetic
+        context = SleeveContext(prices=prices, dividends=pd.DataFrame(
+            columns=["ticker", "date", "amount"]), cash_daily=pd.Series(0.0, index=prices.index))
+
+        sleeve = self._Constant()
+        books = sleeve_books([sleeve], context)
+        config = PortfolioConfig(sleeve_target_vol=0.10, cost_bps=5.0)
+        scaled = vol_target_sleeves(books, returns, config, [sleeve])
+
+        turnover = backtest.run(scaled["constant"], returns, 0.0).turnover
+        # A constant position rescaled monthly trades about twelve times a year,
+        # not 250. Anything above ~40 means the scalar is moving daily.
+        assert float(turnover.mean() * 252) < 40.0
+
+    def test_equalises_sleeve_volatility(self, synthetic):
+        prices, returns = synthetic
+        context = SleeveContext(prices=prices, dividends=pd.DataFrame(
+            columns=["ticker", "date", "amount"]), cash_daily=pd.Series(0.0, index=prices.index))
+        sleeve = self._Constant()
+        config = PortfolioConfig(sleeve_target_vol=0.10, cost_bps=5.0)
+        scaled = vol_target_sleeves(sleeve_books([sleeve], context), returns, config, [sleeve])
+
+        realised = backtest.run(scaled["constant"], returns, 0.0).returns
+        annualised = float(realised.loc[realised.ne(0).idxmax():].std() * np.sqrt(252))
+        assert 0.06 < annualised < 0.16, f"expected near 10%, got {annualised:.2%}"
+
+    def test_disabled_returns_the_books_unchanged(self, synthetic):
+        prices, returns = synthetic
+        context = SleeveContext(prices=prices, dividends=pd.DataFrame(
+            columns=["ticker", "date", "amount"]), cash_daily=pd.Series(0.0, index=prices.index))
+        sleeve = self._Constant()
+        books = sleeve_books([sleeve], context)
+        config = PortfolioConfig(sleeve_target_vol=None)
+        assert vol_target_sleeves(books, returns, config, [sleeve]) is books
+
+
+class TestExcessReturnsAndCosts:
+    def test_excess_returns_subtract_the_bill(self):
+        dates = pd.bdate_range("2020-01-01", periods=3)
+        returns = pd.DataFrame({"A": [0.01, 0.02, 0.0]}, index=dates)
+        cash = pd.Series(0.0002, index=dates)
+        excess = data.excess_returns(returns, cash)
+        assert excess["A"].tolist() == pytest.approx([0.0098, 0.0198, -0.0002])
+
+    def test_costs_widen_with_volatility(self):
+        dates = pd.bdate_range("2020-01-01", periods=400)
+        rng = np.random.default_rng(31)
+        quiet = rng.normal(0, 0.004, 200)
+        wild = rng.normal(0, 0.030, 200)
+        returns = pd.Series(np.concatenate([quiet, wild]), index=dates)
+
+        schedule = backtest.volatility_scaled_costs(5.0, returns)
+        assert schedule.iloc[350] > schedule.iloc[150] * 1.5
+        assert schedule.max() <= 5.0 * 4.0 + 1e-9, "cap must bind"
+
+    def test_a_series_cost_is_charged_per_day(self):
+        dates = pd.bdate_range("2020-01-01", periods=4)
+        returns = pd.DataFrame({"X": [0.0] * 4}, index=dates)
+        weights = pd.DataFrame({"X": [0.0, 1.0, 1.0, 1.0]}, index=dates)
+        schedule = pd.Series([10.0, 10.0, 100.0, 10.0], index=dates)
+        result = backtest.run(weights, returns, schedule)
+        # One unit of turnover on day 1, paid at day 2's rate of 100bps.
+        assert result.returns.iloc[2] == pytest.approx(-100.0 / 10_000.0)
+
+
+class TestDeflatedSharpe:
+    def test_more_trials_raise_the_bar(self):
+        rng = np.random.default_rng(41)
+        returns = pd.Series(rng.normal(0.0004, 0.008, 2500))
+        trials = list(rng.normal(0.0, 0.3, 25))
+
+        few = deflated.deflated_sharpe_ratio(returns, 3, trials)
+        many = deflated.deflated_sharpe_ratio(returns, 50, trials)
+        assert many["expected_max_sharpe_under_null"] > few["expected_max_sharpe_under_null"]
+        assert many["deflated_sharpe"] < few["deflated_sharpe"]
+
+    def test_a_pure_noise_strategy_does_not_survive(self):
+        rng = np.random.default_rng(42)
+        noise = pd.Series(rng.normal(0.0, 0.01, 2500))
+        result = deflated.deflated_sharpe_ratio(noise, 25, list(rng.normal(0, 0.3, 25)))
+        assert result["deflated_sharpe"] < 0.95
+        assert "does not survive" in result["verdict"]
+
+    def test_haircut_is_harsher_under_bonferroni_than_bhy(self):
+        strict = deflated.haircut_sharpe(0.8, 19.0, 25, method="bonferroni")
+        lenient = deflated.haircut_sharpe(0.8, 19.0, 25, method="bhy")
+        assert strict["haircut_sharpe"] <= lenient["haircut_sharpe"]
+        assert 0.0 <= lenient["haircut_sharpe"] <= 0.8
+
+    def test_haircut_reports_full_loss_when_nothing_survives(self):
+        result = deflated.haircut_sharpe(0.05, 2.0, 100, method="bonferroni")
+        assert result["haircut_sharpe"] == 0.0
+        assert result["haircut_pct"] == 100.0
+        assert result["significant_at_5pct"] is False
+
+
+class TestSharpeTiltLookback:
+    def test_uses_only_the_configured_window(self):
+        """Six months of Sharpe has a standard error of ~1.41 Sharpe units. The
+        tilt now looks back three years."""
+        assert TrailingSharpeTilt().lookback_days == 756
+        assert TrailingSharpeTilt().min_observations == 504
+
+        dates = pd.bdate_range("2015-01-01", periods=2000)
+        rng = np.random.default_rng(51)
+        window = pd.DataFrame({
+            "a": rng.normal(0.0015, 0.008, 2000),
+            "b": rng.normal(0.0000, 0.008, 2000),
+        }, index=dates)
+        # Recent six months reversed: a short lookback would flip the ranking.
+        window.iloc[-126:, 0] = rng.normal(-0.002, 0.008, 126)
+        window.iloc[-126:, 1] = rng.normal(0.004, 0.008, 126)
+
+        recent = window.tail(126)
+        recent_sharpe = (recent.mean() * 252) / (recent.std(ddof=1) * np.sqrt(252))
+        assert recent_sharpe["b"] > recent_sharpe["a"], "precondition: six months favours b"
+
+        weights = TrailingSharpeTilt().allocate(window)
+        assert weights[0] > weights[1], "three years should outvote six months"

@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src import backtest, data
+from src import backtest, data, deflated
 from src.allocators import default_allocators
 from src.portfolio import (
     PortfolioConfig,
@@ -33,7 +33,9 @@ from src.portfolio import (
     run_portfolio,
     sleeve_books,
     sleeve_return_streams,
+    vol_target_sleeves,
 )
+from src.universe import UNIVERSE
 from src.risk import ledoit_wolf_covariance
 from src.sleeves.base import SleeveContext
 from src.sleeves.strategies import default_sleeves
@@ -57,6 +59,10 @@ def main() -> None:
     ap.add_argument("--cost-bps", type=float, default=5.0)
     ap.add_argument("--target-vol", type=float, default=0.08)
     ap.add_argument("--lookback", type=int, default=504)
+    ap.add_argument("--throttle", action="store_true",
+                    help="enable the adaptive drawdown throttle")
+    ap.add_argument("--flat-costs", action="store_true",
+                    help="use a constant cost rate instead of volatility-scaled")
     args = ap.parse_args()
 
     print("=" * 100)
@@ -65,11 +71,20 @@ def main() -> None:
 
     prices, dividends, cash = data.load(allow_fetch=False)
     prices = data.common_sample(prices)
-    asset_returns = data.daily_returns(prices)
+    cash_daily = data.daily_cash_rate(cash, prices.index)
+
+    # Everything downstream is in EXCESS returns. This sample spans 0% and 5%+
+    # policy rates, and on raw total returns the cash regime distorts the
+    # dollar-neutral sleeves, the net-long book's idle capital, and the trend
+    # sleeve's absolute-momentum threshold in different directions at once.
+    total_returns = data.daily_returns(prices)
+    asset_returns = data.excess_returns(total_returns, cash_daily)
+
     context = SleeveContext(
         prices=prices,
         dividends=dividends,
-        cash_daily=data.daily_cash_rate(cash, prices.index),
+        cash_daily=cash_daily,
+        asset_class={t: meta[1] for t, meta in UNIVERSE.items()},
     )
 
     selection, confirmation = split_by_date(asset_returns.index)
@@ -81,9 +96,28 @@ def main() -> None:
     print(f"  costs {args.cost_bps:.0f}bps per unit turnover, "
           f"vol target {100 * args.target_vol:.0f}%")
 
+    # Costs widen with market volatility unless explicitly disabled. A flat rate
+    # flatters every de-risking rule in the system, because the overlay
+    # generates its largest trades in exactly the weeks spreads blow out.
+    market_proxy = asset_returns.mean(axis=1)
+    cost_schedule = (args.cost_bps if args.flat_costs
+                     else backtest.volatility_scaled_costs(args.cost_bps, market_proxy))
+    if not args.flat_costs:
+        print(f"  costs volatility-scaled: mean {float(cost_schedule.mean()):.1f}bps, "
+              f"p95 {float(cost_schedule.quantile(0.95)):.1f}bps")
+
     sleeves = default_sleeves()
-    books = sleeve_books(sleeves, context)
-    sleeve_net = sleeve_return_streams(books, asset_returns, args.cost_bps)
+    raw_books = sleeve_books(sleeves, context)
+
+    config = PortfolioConfig(lookback_days=args.lookback, cost_bps=cost_schedule,
+                             target_vol=args.target_vol,
+                             use_drawdown_throttle=args.throttle)
+
+    # Scale each sleeve to a common volatility BEFORE allocating, so the
+    # allocator splits risk rather than notional and the portfolio scalar is
+    # not left trying to undo the netting from above.
+    books = vol_target_sleeves(raw_books, asset_returns, config, sleeves)
+    sleeve_net = sleeve_return_streams(books, asset_returns, cost_schedule)
     sleeve_gross = sleeve_return_streams(books, asset_returns, 0.0)
 
     # ---- [1] the sleeves on their own -------------------------------------
@@ -91,7 +125,7 @@ def main() -> None:
     rows = []
     for sleeve in sleeves:
         gross = backtest.run(books[sleeve.name], asset_returns, 0.0, sleeve.name)
-        net = backtest.run(books[sleeve.name], asset_returns, args.cost_bps, sleeve.name)
+        net = backtest.run(books[sleeve.name], asset_returns, cost_schedule, sleeve.name)
         metrics = net.metrics()
         metrics["gross_sharpe"] = round(backtest.sharpe_of(gross.returns), 3)
         metrics["rebalance"] = sleeve.rebalance
@@ -143,9 +177,11 @@ def main() -> None:
           f"{correlation.loc[worst]:+.3f}")
 
     # ---- [3] allocators, decided on the selection half --------------------
-    config = PortfolioConfig(lookback_days=args.lookback, cost_bps=args.cost_bps,
-                             target_vol=args.target_vol)
-
+    # `config` is built once, above, before the sleeves are volatility-targeted
+    # with it. A second construction here used to shadow it -- silently dropping
+    # both the --throttle flag and the volatility-scaled cost schedule, with no
+    # error and entirely plausible output. It was caught only because toggling
+    # --throttle changed nothing at all.
     print("\n[3] SELECTION HALF -- choose the allocator here, and only here")
     portfolios = {}
     rows = []
@@ -274,6 +310,51 @@ def main() -> None:
     print(f"    effective bets, calm               {effective_bets(equal, calm_cov):.2f}")
     print(f"    effective bets, stress             {effective_bets(equal, stress_cov):.2f}")
 
+    # ---- [7] what survives a multiple-testing correction ------------------
+    print("\n[7] DEFLATED SHARPE -- 25 configurations were tested on one sample")
+    all_trial_sharpes = []
+    for portfolio in portfolios.values():
+        all_trial_sharpes.append(backtest.sharpe_of(portfolio.result.returns))
+    for column in sleeve_net.columns:
+        all_trial_sharpes.append(backtest.sharpe_of(sleeve_net[column]))
+    if vetted:
+        for row in vetted_table.to_dict("records"):
+            if np.isfinite(row.get("sharpe", np.nan)):
+                all_trial_sharpes.append(row["sharpe"])
+
+    n_trials = len(default_allocators()) * len(sleeves)
+    print(f"    trials counted: {n_trials} "
+          f"({len(sleeves)} sleeves x {len(default_allocators())} allocators)")
+    print(f"    observed spread of trial Sharpes: "
+          f"variance {np.var(all_trial_sharpes, ddof=1):.4f}")
+
+    rows = []
+    candidates = {
+        f"portfolio: {chosen}": portfolios[chosen].result.returns,
+        "portfolio: equal_weight": portfolios["equal_weight"].result.returns,
+        f"best sleeve: {best_sleeve_selection}": sleeve_net[best_sleeve_selection],
+    }
+    for label, series in candidates.items():
+        full = series.dropna()
+        result = deflated.deflated_sharpe_ratio(full, n_trials, all_trial_sharpes)
+        haircut = deflated.haircut_sharpe(result["annual_sharpe"], result["years"],
+                                          n_trials, method="bhy")
+        rows.append({
+            "candidate": label,
+            "raw_sharpe": result["annual_sharpe"],
+            "psr_vs_zero": result["psr_vs_zero"],
+            "threshold": result["expected_max_sharpe_under_null"],
+            "deflated_sharpe": result["deflated_sharpe"],
+            "bhy_haircut_sharpe": haircut["haircut_sharpe"],
+            "haircut_pct": haircut["haircut_pct"],
+            "survives": "yes" if result["deflated_sharpe"] > 0.95 else "no",
+        })
+    deflation_table = pd.DataFrame(rows)
+    print()
+    print(deflation_table.to_string(index=False))
+    print("\n    deflated_sharpe is P(true Sharpe > the best of 25 trials under the null).")
+    print("    Above 0.95 is the usual bar. Nothing here is close to it.")
+
     # ---- save --------------------------------------------------------------
     REPORTS.mkdir(parents=True, exist_ok=True)
     sleeve_table.to_csv(REPORTS / "sleeves.csv", index=False)
@@ -300,6 +381,7 @@ def main() -> None:
         "persistence": persistence.to_dict("records"),
         "vetted": vetted_table.to_dict("records"),
         "vetted_sleeves": vetted,
+        "deflation": deflation_table.to_dict("records"),
         "netting": netting,
         "stress": {
             "calm_mean_correlation": round(calm_mean, 4),

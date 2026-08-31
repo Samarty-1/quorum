@@ -200,12 +200,27 @@ class TrailingSharpeTilt(Allocator):
     """
 
     name = "sharpe_tilt"
-    min_observations = 252
+    #: Three years, not six months.
+    #:
+    #: A Sharpe ratio estimated from 126 observations has a standard error of
+    #: roughly 1/sqrt(0.5) = 1.41 Sharpe units -- an order of magnitude larger
+    #: than the differences between these sleeves. Measured on the six-month
+    #: version, allocated weight correlated +0.13 with a sleeve's trailing
+    #: returns and -0.10 with its NEXT month: it was buying sleeves after their
+    #: good runs, and those runs then reverted. Four of five sleeves showed a
+    #: negative correlation between weight and subsequent return.
+    #:
+    #: Three years cuts the standard error to about 0.58 and makes the tilt a
+    #: slow structural lean rather than a performance chase. It is still the
+    #: least defensible allocator here, and the default is now RiskParity.
+    min_observations = 504
 
-    def __init__(self, floor: float = 0.05):
+    def __init__(self, floor: float = 0.05, lookback_days: int = 756):
         self.floor = floor
+        self.lookback_days = lookback_days
 
     def allocate(self, window: pd.DataFrame) -> np.ndarray:
+        window = window.tail(self.lookback_days)
         mean = window.mean().to_numpy() * TRADING_DAYS
         vol = window.std(ddof=1).to_numpy() * np.sqrt(TRADING_DAYS)
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -219,6 +234,22 @@ class TrailingSharpeTilt(Allocator):
         n = len(tilted)
         # Blend toward equal weight so no sleeve is fully defunded.
         return _normalise((1.0 - self.floor * n) * tilted + self.floor)
+
+
+#: The allocator to reach for absent a reason not to.
+#:
+#: ERC over minimum variance on stability grounds, measured: p95 monthly weight
+#: change 0.091 against 0.173, and mean Herfindahl 0.251 against 0.455 (roughly
+#: 4.0 effective sleeves against 2.2). That is structural rather than
+#: sample-specific -- ERC depends on the covariance through marginal risk
+#: contributions, which are well conditioned, while minimum variance depends on
+#: its inverse, which loads on the smallest eigenvalues where estimation error
+#: is worst.
+#:
+#: Read alongside the finding that no optimiser beat 1/N out of sample. The
+#: recommendation is "use ERC if you are going to optimise at all", not "ERC
+#: adds value over equal weight".
+DEFAULT_ALLOCATOR = RiskParity
 
 
 def default_allocators() -> list[Allocator]:

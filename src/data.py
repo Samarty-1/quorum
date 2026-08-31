@@ -144,3 +144,29 @@ def daily_cash_rate(cash_annual: pd.Series, index: pd.DatetimeIndex) -> pd.Serie
     """
     aligned = cash_annual.reindex(index.union(cash_annual.index)).ffill().reindex(index)
     return (aligned.fillna(0.0) / 252.0).rename("daily_cash")
+
+
+def excess_returns(returns: pd.DataFrame, cash_daily: pd.Series) -> pd.DataFrame:
+    """Asset returns in excess of the daily bill rate.
+
+    Everything downstream works in excess terms, and the reason is that this
+    sample spans 0% (2009-2015, 2020-2021) and 5%+ (2023-2026). Three things
+    go wrong on raw total returns:
+
+    * **A dollar-neutral book has no cash drag in excess terms**, which is
+      correct -- the shorts fund the longs. On raw returns you have to bolt on
+      a short-rebate assumption, and whatever you choose is wrong in one of the
+      two rate regimes.
+    * **A net-long book earns the bill on its uninvested capital.** In excess
+      terms that is automatically zero; on raw returns it has to be added, and
+      forgetting to is a real understatement in 2023-2026.
+    * **An absolute-momentum filter must compare against cash, not zero.** In
+      2007 a +4% twelve-month return was *underperforming* T-bills. A trend
+      filter thresholded at zero goes long assets losing to cash, and the sign
+      flips in exactly the high-rate periods at both ends of this sample.
+
+    Total return is recovered as excess + cash, so nothing is lost -- but the
+    strategy arithmetic happens where the rate regime cannot distort it.
+    """
+    aligned = cash_daily.reindex(returns.index).fillna(0.0)
+    return returns.sub(aligned, axis=0)

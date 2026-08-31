@@ -23,6 +23,7 @@ from src.sleeves.base import (
     Sleeve,
     SleeveContext,
     inverse_vol_scale,
+    neutralise_within_class,
     rank_scores,
     trailing_dividend_yield,
 )
@@ -106,6 +107,20 @@ class ShortTermReversal(Sleeve):
     name = "reversal"
     rebalance = "weekly"
     warmup_days = 60
+    # Trade only when the target book has moved materially. Rebalancing to
+    # target every week cost this sleeve its entire gross edge: +0.285 gross
+    # Sharpe against -0.033 net at 67 round trips a year. The band is set from
+    # the signal's own decay -- the IC is +0.026 fresh, +0.001 after five days
+    # -- so there is no case for paying to chase small changes in a number that
+    # is already noise by the time the next rebalance arrives.
+    #
+    # Calibrated, not guessed. The L1 distance between consecutive weekly target
+    # books has a median of 1.32 and a 10th percentile of 0.75, so a band below
+    # ~0.75 never binds at all -- an earlier 0.60 changed nothing. At 1.0 the
+    # sleeve trades only when the book has substantially reshuffled: turnover
+    # falls 67 -> 58 and net Sharpe goes -0.028 -> +0.085. It is still not a
+    # significant result, and the README says so.
+    no_trade_band = 1.0
 
     def __init__(self, lookback_days: int = 5):
         self.lookback_days = lookback_days
@@ -142,7 +157,11 @@ class Carry(Sleeve):
         # rather than ranked bottom: shorting gold because it has no coupon is
         # a statement about commodities, not about carry.
         yields = yields.where(yields > 0)
-        return rank_scores(yields).fillna(0.0)
+        # Neutralised within asset class before ranking across it. Without this
+        # the sleeve is a permanent long-credit, short-equity position rather
+        # than a carry signal -- see neutralise_within_class.
+        neutral = neutralise_within_class(yields.fillna(0.0), context.asset_class)
+        return rank_scores(neutral.where(yields.notna())).fillna(0.0)
 
 
 class Value(Sleeve):
@@ -172,7 +191,12 @@ class Value(Sleeve):
         recent = prices.shift(self.skip_days)
         distant = prices.shift(self.long_days)
         long_run = recent / distant - 1.0
-        return rank_scores(-long_run)
+        # Same neutralisation as the carry sleeve, and for the same reason: on
+        # raw long-horizon returns this sleeve was structurally short US equity
+        # (mean net Equity exposure -0.205) and therefore expressing the same
+        # macro bet as carry rather than an independent one.
+        neutral = neutralise_within_class(-long_run, context.asset_class)
+        return rank_scores(neutral)
 
 
 def default_sleeves() -> list[Sleeve]:

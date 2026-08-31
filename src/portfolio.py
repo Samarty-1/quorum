@@ -29,14 +29,19 @@ import pandas as pd
 from src import backtest
 from src.allocators import Allocator, EqualWeight
 from src.risk import (
+    adaptive_throttle,
+    asymmetric_volatility,
     diversification_ratio,
-    drawdown_throttle,
     effective_bets,
     ledoit_wolf_covariance,
-    realised_volatility,
     volatility_scalar,
 )
-from src.sleeves.base import Sleeve, SleeveContext, rebalance_dates
+from src.sleeves.base import (
+    Sleeve,
+    SleeveContext,
+    hold_between_rebalances,
+    rebalance_dates,
+)
 
 TRADING_DAYS = 252
 
@@ -45,14 +50,43 @@ TRADING_DAYS = 252
 class PortfolioConfig:
     lookback_days: int = 504          # two years of trailing sleeve returns
     rebalance: str = "monthly"
-    cost_bps: float = 5.0
+    cost_bps: float | pd.Series = 5.0
     target_vol: float | None = 0.08   # None disables volatility targeting
     max_leverage: float = 3.0
-    vol_window: int = 63
+
+    #: Scale each sleeve to its own volatility target BEFORE allocating.
+    #:
+    #: This is the fix for the layer that was inoperative. With unit-gross
+    #: sleeves averaged at 1/N, roughly half the gross cancels on netting, so
+    #: the combined book ran at 2.40% median volatility and needed 4.15x
+    #: leverage to reach a 10% target -- which meant the leverage cap bound on
+    #: 95.3% of days and the "dynamic scalar" was a constant.
+    #:
+    #: Targeting each sleeve individually puts the leverage where the risk is
+    #: actually understood, at the level where a sleeve's own volatility is
+    #: estimated from its own returns, instead of asking one portfolio-level
+    #: scalar to undo the netting after the fact.
+    sleeve_target_vol: float | None = 0.10
+    sleeve_vol_halflife: int = 40
+    sleeve_max_leverage: float = 4.0
+
+    #: Hard cap on summed absolute weight, independent of the vol target. A
+    #: volatility estimate can be wrong; a gross exposure limit cannot be.
+    max_gross: float | None = 3.0
+
+    # --- volatility estimator ------------------------------------------------
+    #: EWMA half-lives for the portfolio scalar. The fast one de-levers, the
+    #: slow one gates re-levering (see risk.asymmetric_volatility).
+    vol_fast_halflife: int = 20
+    vol_slow_halflife: int = 60
+
+    # --- drawdown throttle ---------------------------------------------------
     use_drawdown_throttle: bool = False
-    throttle_start: float = 0.10
-    throttle_stop: float = 0.20
-    throttle_floor: float = 0.25
+    #: Thresholds are in STANDARD DEVIATIONS of drawdown, not percent, and the
+    #: response is continuous. See risk.adaptive_throttle.
+    throttle_start_sigma: float = 1.5
+    throttle_stop_sigma: float = 3.0
+    throttle_floor: float = 0.30
 
 
 @dataclass
@@ -78,6 +112,55 @@ class PortfolioResult:
 def sleeve_books(sleeves: list[Sleeve], context: SleeveContext) -> dict[str, pd.DataFrame]:
     """Each sleeve's unit-gross asset weights, keyed by sleeve name."""
     return {sleeve.name: sleeve.weights(context) for sleeve in sleeves}
+
+
+def vol_target_sleeves(books: dict[str, pd.DataFrame], asset_returns: pd.DataFrame,
+                       config: PortfolioConfig,
+                       sleeves: list[Sleeve] | None = None) -> dict[str, pd.DataFrame]:
+    """Scale each sleeve to a common volatility before any capital is allocated.
+
+    Two things this fixes at once.
+
+    **The allocator finally compares like with like.** Unit *gross* exposure is
+    not unit *risk*: on this book the sleeve volatilities ranged from 5.7% to
+    10.4%, so an equal-weight allocation was already an implicit risk bet. Every
+    allocator downstream now decides how much risk to give a sleeve, not how
+    much notional.
+
+    **The portfolio scalar stops being a constant.** With sleeves at a known
+    volatility, the combined book lands near its target by construction and the
+    portfolio-level scalar has something small to do, instead of being pinned at
+    a cap it can never leave.
+
+    The per-sleeve scalar is lagged one day and capped, for the same reasons the
+    portfolio one is: the estimate is trailing, and 1/vol is unbounded as vol
+    goes to zero.
+
+    It is also HELD BETWEEN THE SLEEVE'S OWN REBALANCES, which is not a detail.
+    A volatility estimate moves every day, so multiplying a book by a daily
+    scalar re-trades the whole position daily even when not a single signal has
+    changed. Applied naively that alone took this book's turnover from 3.4 to
+    8.3 round trips a year on the trend sleeve and 0.9 to 5.9 on carry -- pure
+    cost, no information. The scalar steps on the same schedule as the signals
+    it is scaling.
+    """
+    if config.sleeve_target_vol is None:
+        return books
+
+    frequencies = {s.name: s.rebalance for s in sleeves} if sleeves else {}
+
+    scaled: dict[str, pd.DataFrame] = {}
+    for name, book in books.items():
+        raw = backtest.run(book, asset_returns, cost_bps=0.0).returns
+        vol = asymmetric_volatility(raw, config.sleeve_vol_halflife,
+                                    config.sleeve_vol_halflife * 3)
+        scalar = (config.sleeve_target_vol / vol).replace([np.inf, -np.inf], np.nan)
+        scalar = scalar.clip(upper=config.sleeve_max_leverage).shift(1)
+        scalar = hold_between_rebalances(
+            scalar.to_frame("s"), frequencies.get(name, config.rebalance)
+        )["s"].fillna(0.0)
+        scaled[name] = book.mul(scalar.reindex(book.index).fillna(0.0), axis=0)
+    return scaled
 
 
 def sleeve_return_streams(books: dict[str, pd.DataFrame], returns: pd.DataFrame,
@@ -141,13 +224,16 @@ def run_portfolio(books: dict[str, pd.DataFrame], sleeve_returns: pd.DataFrame,
         asset_weights += book.mul(sleeve_weights[sleeve_name], axis=0)
 
     leverage = pd.Series(1.0, index=dates, name="leverage")
+    unlevered = backtest.run(asset_weights, asset_returns, cost_bps=0.0).returns
 
     if config.target_vol is not None:
-        # Volatility of the unlevered netted book, estimated on trailing data
-        # and lagged one day so the scalar applied today uses only yesterday's
-        # information.
-        unlevered = backtest.run(asset_weights, asset_returns, cost_bps=0.0).returns
-        trailing_vol = realised_volatility(unlevered, config.vol_window).shift(1)
+        # Asymmetric EWMA rather than a fixed rolling window: de-lever on the
+        # fast estimate, re-lever only when the slow one agrees. On a 126-day
+        # window this book took 40 days to register COVID and never registered
+        # Volmageddon at all.
+        trailing_vol = asymmetric_volatility(
+            unlevered, config.vol_fast_halflife, config.vol_slow_halflife
+        ).shift(1)
         leverage = trailing_vol.apply(
             lambda v: volatility_scalar(v, config.target_vol, config.max_leverage)
         ).fillna(0.0).rename("leverage")
@@ -156,16 +242,33 @@ def run_portfolio(books: dict[str, pd.DataFrame], sleeve_returns: pd.DataFrame,
         leverage = leverage.reindex(decision_dates).reindex(dates).ffill().fillna(0.0)
 
     if config.use_drawdown_throttle:
-        unlevered = backtest.run(asset_weights.mul(leverage, axis=0),
-                                 asset_returns, cost_bps=config.cost_bps).returns
-        equity = (1.0 + unlevered).cumprod()
-        throttle = drawdown_throttle(
-            equity, config.throttle_start, config.throttle_stop, config.throttle_floor
+        # The SHADOW book: unthrottled, so the throttle cannot ratchet itself.
+        # Reading its own throttled equity curve is what makes a de-risking rule
+        # self-trapping -- cutting risk slows the recovery, which keeps the
+        # drawdown deep, which keeps the book cut.
+        shadow = backtest.run(asset_weights.mul(leverage, axis=0),
+                              asset_returns, cost_bps=config.cost_bps).returns
+        shadow_vol = asymmetric_volatility(shadow, config.vol_fast_halflife,
+                                           config.vol_slow_halflife)
+        throttle = adaptive_throttle(
+            shadow, shadow_vol,
+            start_sigma=config.throttle_start_sigma,
+            stop_sigma=config.throttle_stop_sigma,
+            floor=config.throttle_floor,
         ).shift(1).fillna(1.0)
         throttle = throttle.reindex(decision_dates).reindex(dates).ffill().fillna(1.0)
         leverage = leverage * throttle
 
     final_weights = asset_weights.mul(leverage, axis=0)
+
+    if config.max_gross is not None:
+        # A gross cap the volatility estimate cannot override. Vol targeting
+        # asks how much risk the book should take given an estimate; this asks
+        # how much notional it may hold if that estimate is wrong.
+        gross = final_weights.abs().sum(axis=1)
+        excess = (config.max_gross / gross.replace(0.0, np.nan)).clip(upper=1.0).fillna(1.0)
+        final_weights = final_weights.mul(excess, axis=0)
+        leverage = leverage * excess
     result = backtest.run(final_weights, asset_returns, cost_bps=config.cost_bps,
                           name=name or allocator.name)
 
