@@ -1,0 +1,183 @@
+{
+  "reversal_ic": {
+    "by_sampling": {
+      "sampled weekly (as traded)": {
+        "ic": 0.0257,
+        "se": 0.0146,
+        "t": 1.76,
+        "n": 974
+      },
+      "sampled monthly (per spec)": {
+        "ic": -0.054,
+        "se": 0.0301,
+        "t": -1.79,
+        "n": 232
+      }
+    },
+    "by_age": {
+      "0": 0.0257,
+      "5": 0.0012,
+      "10": 0.0047,
+      "21": -0.0209
+    }
+  },
+  "asset_class_exposure": [
+    {
+      "sleeve": "trend",
+      "Equity": 0.081,
+      "Rates": 0.162,
+      "Credit": 0.103,
+      "RealAsset": 0.025
+    },
+    {
+      "sleeve": "xs_momentum",
+      "Equity": 0.106,
+      "Rates": -0.098,
+      "Credit": -0.002,
+      "RealAsset": -0.006
+    },
+    {
+      "sleeve": "reversal",
+      "Equity": -0.03,
+      "Rates": 0.034,
+      "Credit": 0.006,
+      "RealAsset": -0.01
+    },
+    {
+      "sleeve": "carry",
+      "Equity": -0.279,
+      "Rates": -0.059,
+      "Credit": 0.223,
+      "RealAsset": 0.116
+    },
+    {
+      "sleeve": "value",
+      "Equity": -0.205,
+      "Rates": 0.168,
+      "Credit": 0.003,
+      "RealAsset": 0.035
+    }
+  ],
+  "internal_crossing_mean": 0.5078,
+  "vol_target": {
+    "unlevered_median_vol": 0.024,
+    "median_required_leverage": 4.146,
+    "pct_days_cap_binds": 0.9533
+  },
+  "vol_reaction_days": {
+    "GFC 2008": {
+      "21": 11,
+      "63": 14,
+      "126": 22,
+      "252": 32
+    },
+    "Taper 2013": {
+      "21": 24,
+      "63": 64,
+      "126": null,
+      "252": null
+    },
+    "Volmageddon 18": {
+      "21": 14,
+      "63": 15,
+      "126": null,
+      "252": null
+    },
+    "COVID 2020": {
+      "21": 14,
+      "63": 21,
+      "126": 40,
+      "252": null
+    },
+    "Rate hikes 22": {
+      "21": null,
+      "63": null,
+      "126": null,
+      "252": null
+    }
+  },
+  "throttle": {
+    "days_at_full_risk": 2944,
+    "days_at_075": 1067,
+    "days_at_050": 866,
+    "days_flat": 0,
+    "pct_time_derisked": 39.6,
+    "sharpe_off": 0.055,
+    "sharpe_on": 0.051
+  },
+  "sharpe_tilt_chasing": [
+    {
+      "sleeve": "trend",
+      "corr_with_PAST_6m": 0.044,
+      "corr_with_NEXT_1m": -0.064
+    },
+    {
+      "sleeve": "xs_momentum",
+      "corr_with_PAST_6m": 0.079,
+      "corr_with_NEXT_1m": 0.02
+    },
+    {
+      "sleeve": "reversal",
+      "corr_with_PAST_6m": 0.001,
+      "corr_with_NEXT_1m": -0.02
+    },
+    {
+      "sleeve": "carry",
+      "corr_with_PAST_6m": 0.133,
+      "corr_with_NEXT_1m": -0.104
+    },
+    {
+      "sleeve": "value",
+      "corr_with_PAST_6m": 0.026,
+      "corr_with_NEXT_1m": -0.07
+    }
+  ],
+  "allocator_stability": [
+    {
+      "allocator": "equal_weight",
+      "mean_abs_weight_change": 0.0,
+      "p95_weight_change": 0.0,
+      "mean_herfindahl": 0.2,
+      "max_single_sleeve": 0.2,
+      "min_effective_sleeves": 5.0
+    },
+    {
+      "allocator": "inverse_vol",
+      "mean_abs_weight_change": 0.0484,
+      "p95_weight_change": 0.0829,
+      "mean_herfindahl": 0.267,
+      "max_single_sleeve": 1.0,
+      "min_effective_sleeves": 1.0
+    },
+    {
+      "allocator": "risk_parity",
+      "mean_abs_weight_change": 0.0453,
+      "p95_weight_change": 0.0909,
+      "mean_herfindahl": 0.251,
+      "max_single_sleeve": 1.0,
+      "min_effective_sleeves": 1.0
+    },
+    {
+      "allocator": "min_variance",
+      "mean_abs_weight_change": 0.0549,
+      "p95_weight_change": 0.1725,
+      "mean_herfindahl": 0.455,
+      "max_single_sleeve": 1.0,
+      "min_effective_sleeves": 1.0
+    },
+    {
+      "allocator": "sharpe_tilt",
+      "mean_abs_weight_change": 0.2175,
+      "p95_weight_change": 0.9976,
+      "mean_herfindahl": 0.393,
+      "max_single_sleeve": 0.8,
+      "min_effective_sleeves": 1.54
+    }
+  ],
+  "spy_tlt_correlation": {
+    "2019": -0.4619,
+    "2021": -0.0935,
+    "2022": -0.0615,
+    "2023": 0.131
+  }
+}

@@ -1,0 +1,170 @@
+Spec universe: 15 ETFs, 4877 days (2007-04-12 to 2026-08-31)
+
+========================================================================================================
+[A] SIGNAL HORIZON -- is the mean-reversion sleeve traded after its signal has decayed?
+========================================================================================================
+
+Signal persistence: correlation of a sleeve's weights with themselves k days later
+(if this decays below ~0.3 inside the rebalance interval, the book is trading stale signal)
+     sleeve rebalance  corr_5d  corr_21d  corr_63d
+      trend   monthly    0.937     0.735     0.550
+xs_momentum   monthly    0.961     0.836     0.624
+   reversal    weekly   -0.018    -0.028     0.015
+      carry   monthly    0.981     0.919     0.814
+      value quarterly    0.984     0.934     0.795
+
+Mean IC of the 5-day reversal signal vs the next 5 days:
+    sampled weekly (as traded)     IC +0.0257 +/- 0.0146   t +1.76   n 974
+    sampled monthly (per spec)     IC -0.0540 +/- 0.0301   t -1.79   n 232
+    Neither clears 2 standard errors. The effect is weak and not robust
+    to the sampling choice, which is the finding -- not its sign.
+
+  Signal ageing (weekly sampling), IC as the signal is held longer:
+    aged  0 days:  IC +0.0257 +/- 0.0146
+    aged  5 days:  IC +0.0012 +/- 0.0150
+    aged 10 days:  IC +0.0047 +/- 0.0150
+    aged 21 days:  IC -0.0209 +/- 0.0148  <- what a monthly rebalance actually holds
+
+========================================================================================================
+[B] ASSET-CLASS BIAS -- does the yield/value sleeve structurally own HYG and VNQ?
+========================================================================================================
+
+Average NET exposure by asset class, per sleeve (as a share of gross book):
+     sleeve  Equity  Rates  Credit  RealAsset
+      trend   0.081  0.162   0.103      0.025
+xs_momentum   0.106 -0.098  -0.002     -0.006
+   reversal  -0.030  0.034   0.006     -0.010
+      carry  -0.279 -0.059   0.223      0.116
+      value  -0.205  0.168   0.003      0.035
+
+Most persistently held names (mean weight) for the income/value sleeves:
+    carry   long:  HYG +0.136, VNQ +0.094, LQD +0.087, TLT +0.037
+    carry   short: SPY -0.055, SHY -0.079, IWM -0.098, QQQ -0.128
+    value   long:  SHY +0.074, DBC +0.054, IEF +0.045, EEM +0.040
+    value   short: VNQ -0.039, IWM -0.054, SPY -0.080, QQQ -0.114
+
+========================================================================================================
+[C] SLEEVE INTERACTION -- do the sleeves fight each other, and when?
+========================================================================================================
+
+Internal position crossing (fraction of gross that cancels on netting):
+    full sample mean   50.8%
+    GFC 2008          42.4%
+    Taper 2013        48.5%
+    Volmageddon 18    52.1%
+    COVID 2020        60.7%
+    Rate hikes 22     45.9%
+
+Trend vs Reversal rolling 63-day correlation, by regime:
+    full sample mean   +0.084
+    GFC 2008          -0.358
+    Taper 2013        -0.025
+    Volmageddon 18    +0.123
+    COVID 2020        -0.002
+    Rate hikes 22     -0.029
+
+========================================================================================================
+[D] VOLATILITY TARGETING -- is a 10% target reachable at L_max = 1.5?
+========================================================================================================
+
+Unlevered equal-weight book realised vol (63d): median 2.40%, 10th pct 1.48%, 90th pct 4.90%
+Leverage needed to hit 10%: median 4.15x, 90th pct 6.60x
+
+    Time the L_max = 1.5 cap BINDS: 95.3% of days
+    Realised vol of the capped book: 4.86% (target 10%)
+
+========================================================================================================
+[E] COVARIANCE WINDOW -- does 126 days react fast enough?
+========================================================================================================
+
+Trading days until the vol estimate rises 50% above its pre-episode level
+(-- means it never got there inside the episode window):
+    episode                   21d         63d        126d        252d
+    GFC 2008                   11          14          22          32
+    Taper 2013                 24          64          --          --
+    Volmageddon 18             14          15          --          --
+    COVID 2020                 14          21          40          --
+    Rate hikes 22              --          --          --          --
+
+  Interpretation: these are days of EXPOSURE AT THE OLD RISK LEVEL before
+  the scalar has substantially responded. Multiply by the daily loss rate
+  in the episode to get the cost of the estimator's lag.
+
+========================================================================================================
+[F] DRAWDOWN THROTTLE -- does the spec's 10/15/20 ladder whipsaw?
+========================================================================================================
+
+Spec throttle applied to the 1/N book:
+    days_at_full_risk        2944
+    days_at_075              1067
+    days_at_050              866
+    days_flat                0
+    pct_time_derisked        39.6
+
+         name  sharpe  annual_return  annual_vol  max_drawdown  hit_rate
+  no throttle   0.055         0.0015      0.0485       -0.2097    0.4954
+spec throttle   0.051         0.0013      0.0429       -0.1789    0.4954
+
+Behaviour through each episode (cumulative return, throttle on vs off):
+    GFC 2008          off  +7.07%   on  +7.07%   delta  +0.00%   mean exposure 1.00
+    Taper 2013        off  +0.48%   on  +0.48%   delta  +0.00%   mean exposure 1.00
+    Volmageddon 18    off  -0.38%   on  -0.38%   delta  +0.00%   mean exposure 1.00
+    COVID 2020        off  -1.14%   on  -1.38%   delta  -0.24%   mean exposure 0.68
+    Rate hikes 22     off +13.08%   on  +9.14%   delta  -3.93%   mean exposure 0.76
+
+    Feedback check -- drawdown is measured on the throttled curve:
+      max drawdown   off -20.97%   on -17.89%
+      days underwater off  4555   on  4564
+      -> the throttle never reached the 20% rung precisely BECAUSE the
+         10% and 15% rungs had already cut risk. The severe rule is
+         untested by this sample, not proven safe by it.
+
+========================================================================================================
+[G] TRAILING-SHARPE TILT -- is it chasing performance?
+========================================================================================================
+
+Correlation of a sleeve's allocated weight with its returns BEFORE and AFTER:
+     sleeve  corr_with_PAST_6m  corr_with_NEXT_1m
+      trend              0.044             -0.064
+xs_momentum              0.079              0.020
+   reversal              0.001             -0.020
+      carry              0.133             -0.104
+      value              0.026             -0.070
+
+  A tilt that works shows a positive correlation with FUTURE returns.
+  A tilt that chases shows a large positive correlation with PAST returns
+  and roughly zero with future ones.
+
+========================================================================================================
+[H] ERC vs MINIMUM VARIANCE -- which is structurally more stable?
+========================================================================================================
+
+Allocator weight stability (monthly weight changes across the 5 sleeves):
+   allocator  mean_abs_weight_change  p95_weight_change  mean_herfindahl  max_single_sleeve  min_effective_sleeves
+equal_weight                  0.0000             0.0000            0.200                0.2                   5.00
+ inverse_vol                  0.0484             0.0829            0.267                1.0                   1.00
+ risk_parity                  0.0453             0.0909            0.251                1.0                   1.00
+min_variance                  0.0549             0.1725            0.455                1.0                   1.00
+ sharpe_tilt                  0.2175             0.9976            0.393                0.8                   1.54
+
+========================================================================================================
+[I] 2022 -- what the stock/bond correlation flip did to the vol scalar
+========================================================================================================
+
+Rolling 126-day SPY/TLT correlation:
+    2010  -0.547
+    2015  -0.397
+    2019  -0.462
+    2021  -0.094
+    2022  -0.061
+    2023  +0.131
+    2025  +0.061
+
+What that does to the book's own volatility and required leverage:
+    2019  realised vol 2.69%   required leverage 3.89x   capped at 1.50x
+    2021  realised vol 3.24%   required leverage 3.37x   capped at 1.50x
+    2022  realised vol 4.49%   required leverage 2.27x   capped at 1.50x
+    2023  realised vol 2.76%   required leverage 4.43x   capped at 1.50x
+
+
+Saved C:\Users\Leigh\quorum\reports\audit.json
