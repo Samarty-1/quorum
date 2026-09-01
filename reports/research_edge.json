@@ -1,0 +1,241 @@
+{
+  "sample": {
+    "funds": 12,
+    "start": "1991-11-04",
+    "end": "2026-08-31",
+    "years": 34.8
+  },
+  "candidates": [
+    {
+      "sleeve": "trend",
+      "pristine_sharpe": 0.903,
+      "pristine_t": 3.18,
+      "familiar_sharpe": 0.383,
+      "familiar_t": 1.64,
+      "full_sharpe": 0.611,
+      "full_t": 3.38,
+      "same_sign": "yes"
+    },
+    {
+      "sleeve": "trend_multi",
+      "pristine_sharpe": 0.748,
+      "pristine_t": 2.58,
+      "familiar_sharpe": 0.158,
+      "familiar_t": 0.71,
+      "full_sharpe": 0.413,
+      "full_t": 2.31,
+      "same_sign": "yes"
+    },
+    {
+      "sleeve": "bab",
+      "pristine_sharpe": -0.68,
+      "pristine_t": -2.61,
+      "familiar_sharpe": 0.009,
+      "familiar_t": 0.04,
+      "full_sharpe": -0.295,
+      "full_t": -1.83,
+      "same_sign": "NO"
+    },
+    {
+      "sleeve": "turn_of_month",
+      "pristine_sharpe": 0.435,
+      "pristine_t": 1.46,
+      "familiar_sharpe": -0.149,
+      "familiar_t": -0.62,
+      "full_sharpe": 0.113,
+      "full_t": 0.6,
+      "same_sign": "NO"
+    },
+    {
+      "sleeve": "xs_momentum",
+      "pristine_sharpe": 0.496,
+      "pristine_t": 1.8,
+      "familiar_sharpe": 0.264,
+      "familiar_t": 1.25,
+      "full_sharpe": 0.368,
+      "full_t": 2.17,
+      "same_sign": "yes"
+    },
+    {
+      "sleeve": "value",
+      "pristine_sharpe": -0.277,
+      "pristine_t": -1.12,
+      "familiar_sharpe": -0.226,
+      "familiar_t": -1.02,
+      "full_sharpe": -0.244,
+      "full_t": -1.48,
+      "same_sign": "yes"
+    }
+  ],
+  "book": [
+    {
+      "name": "equal_weight / pristine",
+      "n_years": 15.4,
+      "sharpe": 0.894,
+      "t_nw": 3.13,
+      "ann_ret": 0.0681,
+      "ann_vol": 0.0762,
+      "max_dd": -0.1436
+    },
+    {
+      "name": "equal_weight / familiar",
+      "n_years": 19.4,
+      "sharpe": 0.425,
+      "t_nw": 1.93,
+      "ann_ret": 0.0349,
+      "ann_vol": 0.0821,
+      "max_dd": -0.1882
+    },
+    {
+      "name": "equal_weight / full",
+      "n_years": 34.8,
+      "sharpe": 0.624,
+      "t_nw": 3.56,
+      "ann_ret": 0.0496,
+      "ann_vol": 0.0795,
+      "max_dd": -0.1882
+    },
+    {
+      "name": "risk_parity / pristine",
+      "n_years": 15.4,
+      "sharpe": 0.882,
+      "t_nw": 3.09,
+      "ann_ret": 0.0672,
+      "ann_vol": 0.0762,
+      "max_dd": -0.144
+    },
+    {
+      "name": "risk_parity / familiar",
+      "n_years": 19.4,
+      "sharpe": 0.419,
+      "t_nw": 1.91,
+      "ann_ret": 0.0345,
+      "ann_vol": 0.0824,
+      "max_dd": -0.1813
+    },
+    {
+      "name": "risk_parity / full",
+      "n_years": 34.8,
+      "sharpe": 0.615,
+      "t_nw": 3.52,
+      "ann_ret": 0.049,
+      "ann_vol": 0.0797,
+      "max_dd": -0.1813
+    },
+    {
+      "name": "BENCHMARK equal-weight buy&hold / pristine",
+      "n_years": 15.4,
+      "sharpe": 0.742,
+      "t_nw": 2.64,
+      "ann_ret": 0.0524,
+      "ann_vol": 0.0707,
+      "max_dd": -0.2145
+    },
+    {
+      "name": "BENCHMARK equal-weight buy&hold / familiar",
+      "n_years": 19.4,
+      "sharpe": 0.45,
+      "t_nw": 2.02,
+      "ann_ret": 0.0546,
+      "ann_vol": 0.1214,
+      "max_dd": -0.4017
+    },
+    {
+      "name": "BENCHMARK equal-weight buy&hold / full",
+      "n_years": 34.8,
+      "sharpe": 0.526,
+      "t_nw": 3.08,
+      "ann_ret": 0.0536,
+      "ann_vol": 0.102,
+      "max_dd": -0.4017
+    },
+    {
+      "name": "BENCHMARK 60/40 / pristine",
+      "n_years": 15.4,
+      "sharpe": 0.516,
+      "t_nw": 2.22,
+      "ann_ret": 0.051,
+      "ann_vol": 0.0988,
+      "max_dd": -0.3712
+    },
+    {
+      "name": "BENCHMARK 60/40 / familiar",
+      "n_years": 19.4,
+      "sharpe": 0.607,
+      "t_nw": 2.96,
+      "ann_ret": 0.07,
+      "ann_vol": 0.1154,
+      "max_dd": -0.3785
+    },
+    {
+      "name": "BENCHMARK 60/40 / full",
+      "n_years": 34.8,
+      "sharpe": 0.568,
+      "t_nw": 3.7,
+      "ann_ret": 0.0616,
+      "ann_vol": 0.1083,
+      "max_dd": -0.3973
+    }
+  ],
+  "deflation": [
+    {
+      "candidate": "BOOK (survivors, 1/N)",
+      "raw_sharpe": 0.624,
+      "dsr_empirical": 0.108,
+      "dsr_noise": 0.888,
+      "bhy_haircut": 0.5563,
+      "bhy_sig": true
+    },
+    {
+      "candidate": "trend",
+      "raw_sharpe": 0.611,
+      "dsr_empirical": 0.095,
+      "dsr_noise": 0.872,
+      "bhy_haircut": 0.5415,
+      "bhy_sig": true
+    },
+    {
+      "candidate": "trend_multi",
+      "raw_sharpe": 0.413,
+      "dsr_empirical": 0.006,
+      "dsr_noise": 0.491,
+      "bhy_haircut": 0.3109,
+      "bhy_sig": false
+    },
+    {
+      "candidate": "xs_momentum",
+      "raw_sharpe": 0.368,
+      "dsr_empirical": 0.003,
+      "dsr_noise": 0.388,
+      "bhy_haircut": 0.2541,
+      "bhy_sig": false
+    },
+    {
+      "candidate": "turn_of_month",
+      "raw_sharpe": 0.113,
+      "dsr_empirical": 0.0,
+      "dsr_noise": 0.037,
+      "bhy_haircut": 0.0,
+      "bhy_sig": false
+    },
+    {
+      "candidate": "value",
+      "raw_sharpe": -0.244,
+      "dsr_empirical": 0.0,
+      "dsr_noise": 0.0,
+      "bhy_haircut": -0.0724,
+      "bhy_sig": false
+    },
+    {
+      "candidate": "bab",
+      "raw_sharpe": -0.295,
+      "dsr_empirical": 0.0,
+      "dsr_noise": 0.0,
+      "bhy_haircut": -0.153,
+      "bhy_sig": false
+    }
+  ],
+  "empirical_trial_sd": 0.3694,
+  "noise_implied_sd": 0.1842,
+  "n_trials": 48
+}

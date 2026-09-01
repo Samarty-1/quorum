@@ -251,3 +251,184 @@ def default_sleeves() -> list[Sleeve]:
 def all_sleeves() -> list[Sleeve]:
     """Every sleeve including the cut one, for diagnostics and comparison."""
     return [TrendFollowing(), CrossSectionalMomentum(), ShortTermReversal(), Carry(), Value()]
+
+
+# ---------------------------------------------------------------------------
+# Candidates chosen from the external literature, not from this sample.
+#
+# Every parameter below comes from a published specification. That is the only
+# defence available when adding strategies to a dataset that has already been
+# looked at: if the parameters were picked here, the results would be fitted
+# here, and the deflation would have to account for a search this repo could not
+# honestly bound.
+# ---------------------------------------------------------------------------
+
+
+class MultiHorizonTrend(Sleeve):
+    """Trend across three horizons at once, rather than twelve months alone.
+
+    The single-horizon trend sleeve is the only thing in this study that worked
+    (0.450 net, t = 2.13), and the literature's consistent finding is that a
+    blend of short, medium and long lookbacks is more robust than any one of
+    them -- Hurst, Ooi and Pedersen's "A Century of Evidence on Trend-Following
+    Investing" and AQR's "Trends Everywhere" both build on 1-, 3- and 12-month
+    signals combined, and Baltas-Kosowski find the blend's advantage is
+    primarily a reduction in turnover-adjusted drawdown rather than a higher
+    raw mean.
+
+    Measured here, it did not help, and the reason is worth recording because
+    it contradicts what this docstring originally claimed.
+
+    The expected benefit was lower turnover -- three lookbacks whipsaw at
+    different times, so the blend should change position less often than any
+    component. The opposite happened: **2.7x the turnover of single-horizon
+    trend**, and a lower Sharpe over 35 years (0.413 against 0.611).
+
+    The cause is the construction. Averaging three `sign()` signals produces a
+    four-state signal (-1, -1/3, +1/3, +1) rather than a two-state one, so it
+    moves whenever ANY horizon flips, and each flip retrades a third of the
+    book. The literature's turnover benefit comes from a *continuous* signal --
+    AQR and Hurst-Ooi-Pedersen use z-scored or tanh-squashed momentum, where
+    blending genuinely smooths magnitude rather than adding intermediate states.
+
+    A continuous-signal version would be the fair test of the published claim
+    and is NOT implemented here, deliberately: it would be another trial on a
+    sample that has already been searched hard, and the deflation cannot absorb
+    many more. Recorded as untested rather than quietly attempted.
+
+    Equal weight across horizons, no optimisation over the blend.
+    """
+
+    name = "trend_multi"
+    rebalance = "monthly"
+    warmup_days = 252 + 60
+
+    def __init__(self, lookbacks: tuple[int, ...] = (21, 63, 252), vol_span: int = 60):
+        self.lookbacks = lookbacks
+        self.vol_span = vol_span
+
+    def raw_weights(self, context: SleeveContext) -> pd.DataFrame:
+        prices = context.prices
+        returns = prices.pct_change()
+        cash = context.cash_daily.reindex(prices.index).fillna(0.0)
+
+        signal = None
+        for lookback in self.lookbacks:
+            total = prices / prices.shift(lookback) - 1.0
+            # Against cash over the same window, not against zero.
+            hurdle = cash.rolling(lookback, min_periods=lookback // 2).sum()
+            direction = np.sign(total.sub(hurdle, axis=0))
+            signal = direction if signal is None else signal + direction
+
+        signal = signal / float(len(self.lookbacks))
+        return inverse_vol_scale(signal, returns, self.vol_span)
+
+
+class BettingAgainstBeta(Sleeve):
+    """Long low-beta assets, short high-beta ones, with the legs beta-matched.
+
+    Frazzini and Pedersen (2014). The premise is that leverage-constrained
+    investors bid up high-beta assets to get exposure they cannot borrow to
+    obtain, so high beta is persistently overpriced per unit of risk. It is one
+    of the few anomalies documented across equities, bonds, credit and futures
+    simultaneously, and the 2024 crowding literature classes it with the
+    "judgment" factors that decay more slowly than mechanical ones like
+    momentum.
+
+    The beta-matching is what makes it BAB rather than a disguised short on
+    market risk: the long leg is levered up and the short leg levered down until
+    both have unit beta, so the book is beta-neutral by construction and its
+    return is not a market bet. Skipping that step -- ranking on beta and
+    equal-weighting the legs -- produces a permanently net-short-beta portfolio
+    that loses money in every bull market, which is a different strategy and a
+    worse one.
+    """
+
+    name = "bab"
+    rebalance = "monthly"
+    warmup_days = 252 + 60
+
+    def __init__(self, beta_window: int = 252, min_periods: int = 126,
+                 max_leg_leverage: float = 3.0):
+        self.beta_window = beta_window
+        self.min_periods = min_periods
+        self.max_leg_leverage = max_leg_leverage
+
+    def raw_weights(self, context: SleeveContext) -> pd.DataFrame:
+        prices = context.prices
+        returns = prices.pct_change()
+        # Equal-weight own universe as the market proxy: using an external index
+        # would import a different investable set than the one being ranked.
+        market = returns.mean(axis=1)
+
+        covariance = returns.rolling(self.beta_window, min_periods=self.min_periods).cov(market)
+        variance = market.rolling(self.beta_window, min_periods=self.min_periods).var()
+        beta = covariance.div(variance, axis=0).replace([np.inf, -np.inf], np.nan)
+        # Shrink toward one, as Frazzini-Pedersen do: rolling betas are noisy
+        # and the raw estimate overstates dispersion.
+        beta = 0.6 * beta + 0.4 * 1.0
+
+        ranks = beta.rank(axis=1, pct=True)
+        low = (ranks <= 0.5).astype(float)
+        high = (ranks > 0.5).astype(float)
+        low = low.div(low.sum(axis=1).replace(0, np.nan), axis=0)
+        high = high.div(high.sum(axis=1).replace(0, np.nan), axis=0)
+
+        # Beta-match the legs: scale each by the reciprocal of its own beta.
+        beta_low = (low * beta).sum(axis=1)
+        beta_high = (high * beta).sum(axis=1)
+        scale_low = (1.0 / beta_low).clip(upper=self.max_leg_leverage)
+        scale_high = (1.0 / beta_high).clip(upper=self.max_leg_leverage)
+
+        weights = low.mul(scale_low, axis=0) - high.mul(scale_high, axis=0)
+        return weights.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+class TurnOfMonth(Sleeve):
+    """Hold the market around the month boundary; hold nothing the rest of the time.
+
+    Ogden (1990) and a long replication literature since: equity returns cluster
+    into the last day of the month and the first three of the next, with the
+    remaining ~16 trading days contributing close to nothing. The usual
+    explanation is a liquidity/flow effect -- salary, pension and coupon flows
+    concentrate at month end -- which is a mechanism that does not require
+    anyone to be wrong, and so has less reason to be arbitraged away than a
+    mispricing would.
+
+    Included here mainly because it is a genuinely DIFFERENT kind of signal from
+    everything else in the book: it is a calendar rule, not a price
+    transformation, so it cannot be correlated with trend or momentum by
+    construction. If the multi-strategy premise has anything left in it, this is
+    where the diversification would come from.
+
+    It is in the market only about a fifth of the time, so its standalone
+    volatility is low and its Sharpe should be read alongside how little risk it
+    takes.
+    """
+
+    name = "turn_of_month"
+    rebalance = "daily"
+    warmup_days = 21
+
+    def __init__(self, days_before: int = 1, days_after: int = 3):
+        self.days_before = days_before
+        self.days_after = days_after
+
+    def raw_weights(self, context: SleeveContext) -> pd.DataFrame:
+        index = context.prices.index
+        month = pd.Series(index, index=index).dt.to_period("M")
+
+        # Position within the month, counted from each end.
+        from_start = month.groupby(month).cumcount()
+        from_end = month.groupby(month).cumcount(ascending=False)
+
+        in_window = (from_end < self.days_before) | (from_start < self.days_after)
+
+        weights = pd.DataFrame(0.0, index=index, columns=context.prices.columns)
+        weights.loc[in_window.to_numpy(), :] = 1.0
+        return weights
+
+
+def candidate_sleeves() -> list[Sleeve]:
+    """The literature-sourced candidates, for the extended-history study."""
+    return [MultiHorizonTrend(), BettingAgainstBeta(), TurnOfMonth()]

@@ -1,0 +1,110 @@
+Extended universe: 12 funds, 8766 days
+  1991-11-04 to 2026-08-31 (34.8 years)
+  PRISTINE  1991-11-04 .. 2007-04-11 (15.4y, never examined)
+  familiar  2007-04-12 .. 2026-08-31 (19.4y, the ETF study's era)
+
+====================================================================================================
+[1] EACH CANDIDATE, PRISTINE PERIOD vs FAMILIAR PERIOD
+====================================================================================================
+       sleeve  pristine_sharpe  pristine_t  familiar_sharpe  familiar_t  full_sharpe  full_t same_sign
+        trend            0.903        3.18            0.383        1.64        0.611    3.38       yes
+  trend_multi            0.748        2.58            0.158        0.71        0.413    2.31       yes
+          bab           -0.680       -2.61            0.009        0.04       -0.295   -1.83        NO
+turn_of_month            0.435        1.46           -0.149       -0.62        0.113    0.60        NO
+  xs_momentum            0.496        1.80            0.264        1.25        0.368    2.17       yes
+        value           -0.277       -1.12           -0.226       -1.02       -0.244   -1.48       yes
+
+    Positive in BOTH periods: ['trend', 'trend_multi', 'xs_momentum']
+
+====================================================================================================
+[2] ARE THEY DIFFERENT FROM EACH OTHER?
+====================================================================================================
+               trend  trend_multi    bab  turn_of_month  xs_momentum  value
+trend          1.000        0.727 -0.105          0.085        0.743 -0.010
+trend_multi    0.727        1.000 -0.024          0.024        0.484 -0.019
+bab           -0.105       -0.024  1.000         -0.286       -0.150  0.003
+turn_of_month  0.085        0.024 -0.286          1.000        0.052 -0.045
+xs_momentum    0.743        0.484 -0.150          0.052        1.000 -0.071
+value         -0.010       -0.019  0.003         -0.045       -0.071  1.000
+
+====================================================================================================
+[3] THE BOOK, BUILT ONLY FROM WHAT SURVIVED BOTH PERIODS
+====================================================================================================
+                                      name  n_years  sharpe  t_nw  ann_ret  ann_vol  max_dd
+                   equal_weight / pristine     15.4   0.894  3.13   0.0681   0.0762 -0.1436
+                   equal_weight / familiar     19.4   0.425  1.93   0.0349   0.0821 -0.1882
+                       equal_weight / full     34.8   0.624  3.56   0.0496   0.0795 -0.1882
+                    risk_parity / pristine     15.4   0.882  3.09   0.0672   0.0762 -0.1440
+                    risk_parity / familiar     19.4   0.419  1.91   0.0345   0.0824 -0.1813
+                        risk_parity / full     34.8   0.615  3.52   0.0490   0.0797 -0.1813
+BENCHMARK equal-weight buy&hold / pristine     15.4   0.742  2.64   0.0524   0.0707 -0.2145
+BENCHMARK equal-weight buy&hold / familiar     19.4   0.450  2.02   0.0546   0.1214 -0.4017
+    BENCHMARK equal-weight buy&hold / full     34.8   0.526  3.08   0.0536   0.1020 -0.4017
+                BENCHMARK 60/40 / pristine     15.4   0.516  2.22   0.0510   0.0988 -0.3712
+                BENCHMARK 60/40 / familiar     19.4   0.607  2.96   0.0700   0.1154 -0.3785
+                    BENCHMARK 60/40 / full     34.8   0.568  3.70   0.0616   0.1083 -0.3973
+
+====================================================================================================
+[4] ARE THE SURVIVORS INDEPENDENT, OR ONE BET WEARING THREE HATS?
+====================================================================================================
+    survivors                 ['trend', 'trend_multi', 'xs_momentum']
+    effective independent bets 1.00 of 3
+    best single (trend)       +0.611
+    all 3 combined            +0.624
+
+    Combining them adds +0.013 Sharpe. They are variations on one signal, not three bets.
+
+====================================================================================================
+[5] WHY BETTING-AGAINST-BETA FAILED -- an implementation finding
+====================================================================================================
+    Mean net exposure by asset class:
+      Equity     -0.167
+      Rates      +0.683
+      Credit     +0.485
+      RealAsset  -0.140
+Across MIXED asset classes, 'low beta' means bonds and 'high beta'
+    means equities, so this is a duration bet, not a beta bet.
+    Frazzini-Pedersen document BAB WITHIN an asset class. The factor was
+    not tested here so much as mis-specified -- a finding about the
+    implementation, not evidence the premium is gone.
+
+====================================================================================================
+[6] ROBUSTNESS OF THE ONE THING THAT WORKED
+====================================================================================================
+    trend, by 5-year block -- is it one lucky decade?
+      1992-1996   Sharpe +0.798
+      1997-2001   Sharpe +0.568
+      2002-2006   Sharpe +1.368
+      2007-2011   Sharpe +0.369
+      2012-2016   Sharpe +0.838
+      2017-2021   Sharpe +0.106
+      2022-2026   Sharpe +0.306
+Cost sensitivity (turnover is ~10 round trips a year):
+         5bps   Sharpe +0.614   t +3.39
+        10bps   Sharpe +0.565   t +3.12
+        20bps   Sharpe +0.467   t +2.57
+        40bps   Sharpe +0.270   t +1.49
+
+====================================================================================================
+[7] WHAT SURVIVES MULTIPLE-TESTING CORRECTION
+====================================================================================================
+    trials counted: 48
+    (30 ETF-study configurations + 12 reversal variants + 6 candidates here)
+empirical trial-Sharpe sd  0.369  -- spread of genuinely DIFFERENT strategies, so it contains real
+                                      differences as well as noise, and overstates the null's spread
+    noise-implied Sharpe se    0.184  -- what ONE strategy's estimate wobbles by over 35 years,
+                                      which is what the deflation formula actually assumes
+
+            candidate  raw_sharpe  dsr_empirical  dsr_noise  bhy_haircut  bhy_sig
+BOOK (survivors, 1/N)       0.624          0.108      0.888       0.5563     True
+                trend       0.611          0.095      0.872       0.5415     True
+          trend_multi       0.413          0.006      0.491       0.3109    False
+          xs_momentum       0.368          0.003      0.388       0.2541    False
+        turn_of_month       0.113          0.000      0.037       0.0000    False
+                value      -0.244          0.000      0.000      -0.0724    False
+                  bab      -0.295          0.000      0.000      -0.1530    False
+The BHY haircut needs no variance assumption -- only the trial
+    count -- which is why it is the number to quote when the two DSR
+    conventions disagree.
+
+Saved C:\Users\Leigh\quorum\reports\research_edge.json

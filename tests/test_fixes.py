@@ -593,3 +593,124 @@ class TestReversalIsCutFromTheDefaultBook:
         assert "reversal" not in default_names
         assert "reversal" in every_name, "the measurement must stay reproducible"
         assert len(default_names) == 4
+
+
+class TestExtendedUniverseCandidates:
+    """The literature-sourced candidates and the 35-year universe."""
+
+    @staticmethod
+    def _context(n=1600, seed=71):
+        rng = np.random.default_rng(seed)
+        dates = pd.bdate_range("2010-01-01", periods=n)
+        assets = ["LOWBETA", "HIGHBETA", "MID", "CASHLIKE"]
+        common = rng.normal(0.0002, 0.008, n)
+        betas = {"LOWBETA": 0.3, "HIGHBETA": 1.8, "MID": 1.0, "CASHLIKE": 0.05}
+        steps = np.column_stack([
+            betas[a] * common + rng.normal(0.0, 0.003, n) for a in assets
+        ])
+        prices = pd.DataFrame(100 * np.exp(np.cumsum(steps, axis=0)),
+                              index=dates, columns=assets)
+        return SleeveContext(
+            prices=prices,
+            dividends=pd.DataFrame(columns=["ticker", "date", "amount"]),
+            cash_daily=pd.Series(0.0, index=dates),
+            asset_class={a: "Equity" for a in assets},
+        )
+
+    def test_multi_horizon_trend_trades_MORE_not_less(self):
+        """The expected benefit was lower turnover. The opposite is true, and
+        the test records the real behaviour rather than the hoped-for one.
+
+        Averaging three sign() signals gives a four-state signal instead of a
+        two-state one, so it moves whenever ANY horizon flips and each flip
+        retrades a third of the book. The literature's turnover benefit needs a
+        continuous signal, which this is not.
+        """
+        from src.sleeves.strategies import MultiHorizonTrend, TrendFollowing
+
+        context = self._context()
+
+        def turnover(book):
+            live = book[book.abs().sum(axis=1) > 0]
+            return float(live.diff().abs().sum(axis=1).mean())
+
+        single = turnover(TrendFollowing().weights(context))
+        blended = turnover(MultiHorizonTrend().weights(context))
+        assert blended > single, "sign-averaging adds intermediate states, so it trades more"
+
+    def test_multi_horizon_book_changes_on_more_days(self):
+        """The mechanism behind the extra turnover, asserted where it is visible.
+
+        Not via distinct weight magnitudes -- inverse-volatility scaling and
+        gross normalisation give both books hundreds of those regardless. What
+        differs is how OFTEN the book moves: the blend moves whenever any one of
+        its three horizons flips.
+        """
+        from src.sleeves.strategies import MultiHorizonTrend, TrendFollowing
+
+        context = self._context()
+
+        def change_days(book):
+            live = book[book.abs().sum(axis=1) > 0]
+            return int((live.diff().abs().sum(axis=1) > 1e-9).sum())
+
+        assert change_days(MultiHorizonTrend().weights(context)) >= \
+            change_days(TrendFollowing().weights(context))
+
+    def test_bab_is_beta_neutral_by_construction(self):
+        """Skipping the beta-matching produces a permanently net-short-beta
+        book, which is a different and worse strategy."""
+        from src.sleeves.strategies import BettingAgainstBeta
+
+        context = self._context()
+        book = BettingAgainstBeta().weights(context)
+        live = book[book.abs().sum(axis=1) > 0]
+        assert len(live) > 100
+
+        returns = context.prices.pct_change()
+        market = returns.mean(axis=1)
+        # Shift the FULL book, not the filtered subset: `live` has a
+        # non-contiguous index, so shift(1) on it moves by row position across
+        # gaps and silently misaligns the position with the return it earned.
+        strategy = (book.shift(1) * returns).sum(axis=1)
+        both = pd.concat([strategy, market], axis=1).dropna()
+        both = both[both.iloc[:, 0] != 0.0]
+        beta = float(np.cov(both.iloc[:, 0], both.iloc[:, 1])[0, 1] / np.var(both.iloc[:, 1]))
+        assert abs(beta) < 0.35, f"BAB should be near beta-neutral, got {beta:.2f}"
+
+    def test_bab_is_long_the_low_beta_asset(self):
+        from src.sleeves.strategies import BettingAgainstBeta
+
+        book = BettingAgainstBeta().weights(self._context())
+        live = book[book.abs().sum(axis=1) > 0]
+        assert live["LOWBETA"].mean() > 0
+        assert live["HIGHBETA"].mean() < 0
+
+    def test_turn_of_month_is_in_the_market_about_a_fifth_of_the_time(self):
+        from src.sleeves.strategies import TurnOfMonth
+
+        book = TurnOfMonth().weights(self._context())
+        after_warmup = book.iloc[TurnOfMonth().warmup_days:]
+        share = float((after_warmup.abs().sum(axis=1) > 0).mean())
+        # 4 days of a ~21-day month.
+        assert 0.12 < share < 0.30, f"in the market {share:.1%} of days"
+
+    def test_turn_of_month_holds_the_month_boundary(self):
+        from src.sleeves.strategies import TurnOfMonth
+
+        book = TurnOfMonth().weights(self._context())
+        held = book.abs().sum(axis=1) > 0
+        month_end = held.index.to_series().groupby(
+            held.index.to_period("M")).transform("max") == held.index
+        # Every month-end day after the warmup must be held.
+        tail = held.iloc[TurnOfMonth().warmup_days:]
+        assert tail[month_end.iloc[TurnOfMonth().warmup_days:]].all()
+
+    def test_extended_universe_covers_the_pristine_period(self):
+        from src import extended
+
+        assert extended.EXTENDED_START < extended.ETF_ERA_START
+        assert "VTRIX" in extended.STALE_NAV, "stale-NAV funds must be flagged"
+        assert len(extended.EXTENDED_UNIVERSE) >= 10
+        classes = set(extended.asset_class_map().values())
+        assert {"Equity", "Rates", "Credit", "RealAsset"} <= classes
