@@ -23,6 +23,63 @@ half. Removing it took the book from +0.01 to +0.11 and cut turnover from 28 to
 > **t = 2.13**. The conclusions did not change — the numbers had been depressed
 > by defects, not by the idea. See [What the audit changed](#what-the-audit-changed).
 
+## The edge, and its ceiling
+
+The ETF study below asks whether multi-strategy diversification pays. It
+mostly does not. A second study (`scripts/research_edge.py`) then asks the
+harder question — *is there a tradeable edge here at all* — on **34.8 years**
+of 40 markets built from long-lived mutual funds, with **1991–2007 as a
+holdout no strategy in this repo had ever seen**.
+
+One thing survives: **trend-following.**
+
+| | Pristine (15.4y) | Familiar (19.4y) | Full 34.8y | t |
+|---|---|---|---|---|
+| **trend** | **0.960** | 0.387 | **0.638** | **3.33** |
+| cross-sectional momentum | 0.496 | 0.264 | 0.368 | 2.17 |
+| turn-of-month (Ogden) | 0.435 | −0.149 | 0.113 | 0.60 |
+| value | −0.277 | −0.226 | −0.244 | −1.48 |
+| betting-against-beta | −0.680 | 0.009 | −0.295 | −1.83 |
+
+Positive in **all seven** 5-year blocks. Survives to 20bps costs. Beats
+equal-weight buy-and-hold (0.526) and 60/40 (0.568) at roughly half the
+drawdown. Against 52 trials the BHY haircut leaves **0.571, significant at
+5%** — though the deflated Sharpe (0.892) still does not clear 0.95.
+
+### This is the ceiling on free data, and the reason is measurable
+
+Two improvements were specified from theory *before* testing, and both failed:
+
+| Universe | Markets | Sharpe | **Effective bets** |
+|---|---|---|---|
+| narrow core | 12 | 0.614 | 1.35 |
+| wide, all | 40 | 0.580 | **1.06** |
+| diversifying only | 22 | **0.638** | **1.39** |
+| US sectors only | 19 | 0.459 | 1.04 |
+
+**Adding 28 markets made it worse.** Correlation of *trend returns* rose from
++0.204 to +0.253 and effective bets fell, because 18 of the additions were US
+equity sectors that trend on one cycle. Sharpe tracks effective bets, not
+market count.
+
+The tanh continuous-response signal — the construction the literature actually
+uses — delivered its predicted turnover reduction (9.7 vs 11.7 round trips) and
+a *lower* Sharpe (0.563 vs 0.638).
+
+**So the binding constraint is data, not code.** Effective bets sit at ~1.4
+where a real managed-futures programme runs 8–15, and that gap is the whole
+distance between 0.6 and the ~1.0 those programmes report. Closing it needs
+currencies, international rates and physical commodity futures — genuinely
+independent drivers, none available free with 1991 history.
+
+It is also decaying, consistent with the [~50% post-publication decay the
+crowding literature documents](https://arxiv.org/pdf/2512.11913): by 5-year
+block 0.540, 0.903, 1.444, 0.397, 0.715, **0.225, 0.269**.
+
+Worth stating plainly: 0.638 on a 35-year, six-regime sample with an untouched
+15-year holdout is a better number than a 1.5 from a search nobody can bound.
+It is small because it is real.
+
 ## The question
 
 "Professional traders use more than one strategy" is true, and it is usually
@@ -513,8 +570,11 @@ src/portfolio.py         per-sleeve vol targeting, walk-forward combination,
                          netting, risk overlay, gross cap
 src/backtest.py          the shift, volatility-scaled costs, metrics
 src/deflated.py          deflated Sharpe and multiple-testing haircuts
-scripts/run_study.py     the study
-scripts/audit.py         the structural audit that drove the fixes
+scripts/run_study.py     the multi-strategy study (15 ETFs, 2007-2026)
+scripts/audit.py         the structural audit that drove the risk-layer fixes
+scripts/research_edge.py the 35-year edge study, with the 1991-2007 holdout
+scripts/reversal_search.py  the search that cut the reversal sleeve
+src/extended.py          the 40-market, 34.8-year universe
 ```
 
 ## Running it
