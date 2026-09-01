@@ -497,3 +497,99 @@ class TestEdgeGate:
         lookback = PortfolioConfig().lookback_days
         for allocator in default_allocators():
             allocator.check_window(lookback)
+
+
+class TestRollYield:
+    """Real commodity carry, from a front-month and a laddered fund.
+
+    The audit recorded this as impossible on free data -- "DBC's roll is already
+    inside its price series and cannot be separated without futures-curve data".
+    True of DBC alone; false of a pair on the same underlying.
+    """
+
+    @staticmethod
+    def _context(front_drift, ladder_drift, n=800):
+        dates = pd.bdate_range("2015-01-01", periods=n)
+        prices = pd.DataFrame({"DBC": 100.0, "SPY": 100.0}, index=dates)
+        auxiliary = pd.DataFrame({
+            "USO": 100.0 * np.exp(np.arange(n) * front_drift),
+            "USL": 100.0 * np.exp(np.arange(n) * ladder_drift),
+        }, index=dates)
+        return SleeveContext(prices=prices,
+                             dividends=pd.DataFrame(columns=["ticker", "date", "amount"]),
+                             cash_daily=pd.Series(0.0, index=dates),
+                             auxiliary=auxiliary)
+
+    def test_contango_reads_negative(self):
+        """Front-month bleeding against the ladder is contango: negative carry."""
+        from src.sleeves.base import roll_yield
+
+        context = self._context(front_drift=-0.0004, ladder_drift=0.0)
+        value = roll_yield(context, "USO", "USL").dropna()
+        assert value.mean() < 0
+        # -0.0004/day compounded over 252 days is about -10% a year.
+        assert value.iloc[-1] == pytest.approx(-0.10, abs=0.03)
+
+    def test_backwardation_reads_positive(self):
+        from src.sleeves.base import roll_yield
+
+        context = self._context(front_drift=0.0004, ladder_drift=0.0)
+        assert roll_yield(context, "USO", "USL").dropna().mean() > 0
+
+    def test_identical_curves_read_zero(self):
+        from src.sleeves.base import roll_yield
+
+        context = self._context(front_drift=0.0003, ladder_drift=0.0003)
+        assert roll_yield(context, "USO", "USL").dropna().abs().max() < 1e-9
+
+    def test_missing_auxiliary_degrades_quietly(self):
+        from src.sleeves.base import roll_yield
+
+        context = self._context(0.0, 0.0)
+        bare = SleeveContext(prices=context.prices, dividends=context.dividends,
+                             cash_daily=context.cash_daily)
+        assert roll_yield(bare, "USO", "USL").empty
+        assert roll_yield(context, "NOPE", "USL").empty
+
+    def test_uses_only_trailing_data(self):
+        from src.sleeves.base import roll_yield
+
+        context = self._context(-0.0004, 0.0)
+        original = roll_yield(context, "USO", "USL")
+
+        corrupted_aux = context.auxiliary.copy()
+        cutoff = corrupted_aux.index[500]
+        corrupted_aux.loc[corrupted_aux.index > cutoff] *= 3.0
+        corrupted = roll_yield(
+            SleeveContext(prices=context.prices, dividends=context.dividends,
+                          cash_daily=context.cash_daily, auxiliary=corrupted_aux),
+            "USO", "USL")
+
+        before = original.index <= cutoff
+        pd.testing.assert_series_equal(original[before], corrupted[before])
+
+
+class TestCarryUsesTheRightMeasurePerAsset:
+    def test_physically_backed_bullion_gets_no_reading(self):
+        """Ranking gold bottom because it pays no coupon is a statement about
+        the data field, not about carry."""
+        from src.universe import CARRY_SOURCE
+
+        assert CARRY_SOURCE["GLD"] == "none"
+        assert CARRY_SOURCE["SLV"] == "none"
+        assert CARRY_SOURCE["DBC"] == "roll"
+
+
+class TestReversalIsCutFromTheDefaultBook:
+    def test_default_book_excludes_it_but_it_remains_importable(self):
+        """Best-of-twelve repair variants scored +0.153 on the selection half and
+        -0.132 on the confirmation half. A sleeve whose best variant loses money
+        out of sample does not belong in a book."""
+        from src.sleeves.strategies import all_sleeves, default_sleeves
+
+        default_names = [s.name for s in default_sleeves()]
+        every_name = [s.name for s in all_sleeves()]
+
+        assert "reversal" not in default_names
+        assert "reversal" in every_name, "the measurement must stay reproducible"
+        assert len(default_names) == 4

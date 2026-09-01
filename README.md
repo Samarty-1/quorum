@@ -4,11 +4,16 @@ A multi-strategy systematic book: five independent strategy sleeves, five ways
 of splitting capital between them, and an honest account of what running more
 than one strategy actually bought.
 
-**The short answer: less than advertised.** Naive diversification across five
-standard strategies produced a **+0.01** Sharpe out of sample while simply
-running the single best sleeve produced **+0.48**. Vetting the sleeves once, with
-hindsight, gets the book to **+0.13**; vetting them *walk-forward* — the only
-version available to someone actually running it — gives **−0.09**.
+**The short answer: less than advertised.** Diversification across four
+standard strategies produced a **+0.11** Sharpe out of sample while simply
+running the single best sleeve produced **+0.49**. Vetting once with hindsight
+gets the book to **+0.29**; vetting *walk-forward* — the only version available
+to someone actually running it — still trails a single sleeve.
+
+A fifth sleeve, short-term reversal, was **cut** after twelve repair variants
+were searched on the selection half and the best scored −0.13 on the held-back
+half. Removing it took the book from +0.01 to +0.11 and cut turnover from 28 to
+6.2 round trips a year — the single largest improvement in the study.
 
 > **Revised after a structural audit** (`scripts/audit.py`, output in
 > `reports/audit_output.txt`). The first version ran unit-*gross* sleeves under
@@ -37,9 +42,9 @@ tuned on this sample, so the sleeves do not consume the selection half.
 |---|---|---|
 | `trend` | Time-series momentum, sign of 12m excess return, inverse-vol sized | monthly |
 | `xs_momentum` | Cross-sectional 12−1 month momentum, dollar-neutral | monthly |
-| `reversal` | 5-day short-term reversal, dollar-neutral, no-trade band | weekly |
-| `carry` | Trailing dividend yield rank, class-neutralised | monthly |
+| `carry` | Yield for payers, **roll yield** for futures commodities, class-neutralised | monthly |
 | `value` | Long-horizon reversal (5y→1y), class-neutralised | quarterly |
+| ~~`reversal`~~ | *Cut — see [Why reversal was cut](#why-reversal-was-cut)* | — |
 
 15 liquid ETFs across equity, rates, credit and real assets, 2007-04 to 2026-08
 — 4,877 days, deliberately including 2008. Everything runs in **excess returns**
@@ -57,15 +62,15 @@ trailing two-year window; none ever sees the returns it is about to earn.
 | Sleeve | Gross Sharpe | Net Sharpe | t (NW) | Turnover/yr |
 |---|---|---|---|---|
 | trend | 0.484 | **0.450** | **2.13** | 6.4 |
-| xs_momentum | 0.411 | **0.378** | 1.77 | 5.9 |
-| reversal | 0.285 | **−0.081** | −0.42 | **69.5** |
-| carry | −0.377 | −0.408 | −1.92 | 4.5 |
+| xs_momentum | 0.411 | **0.379** | 1.78 | 5.9 |
+| carry | −0.391 | −0.425 | −1.99 | 5.9 |
 | value | −0.165 | −0.181 | −0.78 | 2.8 |
 
-**Costs are not a rounding error.** Short-term reversal earns a 0.285 gross
-Sharpe and hands all of it back in trading — ~70 round trips a year. It is the
-only sleeve whose sign is decided by the cost model, and a study defaulting to
-zero costs would have published it as the third-best idea in the book.
+**Costs are not a rounding error.** The sleeve that used to sit here —
+short-term reversal — earned a 0.285 gross Sharpe and handed all of it back
+across ~70 round trips a year. Its sign was decided entirely by the cost model,
+and a study defaulting to zero costs would have published it as the third-best
+idea in the book. It has since been cut outright.
 
 Only trend clears t = 2, and it does not survive a multiple-testing correction
 (section 5). That is the honest baseline against which the rest should be read.
@@ -75,12 +80,11 @@ Only trend clears t = 2, and it does not survive a multiple-testing correction
 Not as different as five names suggests.
 
 ```
-             trend  xs_momentum  reversal  carry  value
-trend        1.000        0.658     0.044 -0.101  0.091
-xs_momentum  0.658        1.000    -0.012 -0.176  0.079
-reversal     0.044       -0.012     1.000  0.019  0.026
-carry       -0.101       -0.176     0.019  1.000  0.369
-value        0.091        0.079     0.026  0.369  1.000
+             trend  xs_momentum  carry  value
+trend        1.000        0.658 -0.097  0.091
+xs_momentum  0.658        1.000 -0.207  0.079
+carry       -0.097       -0.207  1.000  0.376
+value        0.091        0.079  0.376  1.000
 ```
 
 **Trend following and momentum correlate at 0.66.** They appear as separate
@@ -88,7 +92,7 @@ entries on every list of trading strategies, and they are built on the same
 12-month signal — one takes its sign, the other its cross-sectional rank. Owning
 both is close to owning one twice.
 
-Measured properly, the five sleeves are **2.54 independent bets**, not five.
+Measured properly, the four sleeves are **1.55 independent bets**, not four.
 
 That number is the Meucci effective-number-of-bets: diagonalise the covariance,
 express the book as exposures to the resulting uncorrelated factors, take the
@@ -107,23 +111,20 @@ Barely, and less than any other decision in the study.
 
 | Allocator | Sharpe | t (NW) |
 |---|---|---|
-| equal_weight | 0.455 | 1.51 |
-| **inverse_vol** | **0.489** | 1.69 |
-| risk_parity | 0.441 | 1.49 |
-| min_variance | −0.026 | −0.08 |
-| sharpe_tilt | 0.430 | 1.47 |
-| gated/risk_parity | 0.217 | 0.77 |
+| equal_weight | 0.229 | 0.73 |
+| inverse_vol | 0.219 | 0.71 |
+| risk_parity | 0.129 | 0.40 |
+| min_variance | −0.170 | −0.52 |
+| **sharpe_tilt** | **0.411** | 1.34 |
+| gated/risk_parity | 0.308 | 1.01 |
 
 **Confirmation half** (2016-12 to 2026-08), scored once:
 
-| Allocator | Sharpe | t (NW) |
-|---|---|---|
-| equal_weight | +0.010 | 0.03 |
-| inverse_vol *(chosen)* | −0.008 | −0.02 |
-| risk_parity | −0.010 | −0.03 |
-| min_variance | −0.106 | −0.35 |
-| sharpe_tilt | +0.006 | 0.02 |
-| gated/risk_parity | −0.090 | −0.29 |
+| Allocator | Sharpe |
+|---|---|
+| equal_weight | +0.109 |
+| **sharpe_tilt** *(chosen)* | **+0.150** |
+| gated/risk_parity | +0.111 |
 
 The allocator picked on the selection half was not the best on the confirmation
 half, and the entire spread from best to worst is **0.10 Sharpe** — far smaller
@@ -142,10 +143,10 @@ No — and this is the finding.
 
 | Book | Confirmation Sharpe |
 |---|---|
-| All five sleeves, 1/N | **+0.010** |
-| Walk-forward edge gate | −0.090 |
-| Vetted four (drop `carry`), 1/N | +0.129 |
-| **Single best sleeve (`trend`)** | **+0.484** |
+| All four sleeves, 1/N | **+0.109** |
+| All four, sharpe_tilt | +0.150 |
+| Vetted three (drop `carry`), sharpe_tilt | +0.293 |
+| **Single best sleeve (`trend`)** | **+0.485** |
 
 Three of the five sleeves lost money out of sample. Diversification reduces
 variance; it does not manufacture expected return. Adding a −0.39 Sharpe sleeve
@@ -208,6 +209,75 @@ before funding it* — failing its own test. The recommendation is not wrong, bu
 it needs evidence the walk-forward window cannot supply. Keeping the allocator
 in the default set as a measured negative result is the point.
 
+## Why reversal was cut
+
+The audit said "move it to weekly or cut it". It was already weekly, and it
+still lost money, so the question needed answering properly rather than
+deferring.
+
+`scripts/reversal_search.py` searches twelve variants — lookbacks of 3, 5 and 10
+days, full cross-section against terciles, with and without a no-trade band — on
+the **selection half only**, then scores the single best once on the held-back
+half.
+
+| | Selection | Confirmation |
+|---|---|---|
+| Best of 12 variants (5d, full, band 1.0) | +0.153 | **−0.132** |
+
+The search did not even find a configuration better than the one already in use,
+and the best variant lost money out of sample. Cutting it was worth more than
+any other single change in the study:
+
+| | 5 sleeves | 4 sleeves |
+|---|---|---|
+| 1/N, confirmation half | +0.010 | **+0.109** |
+| Vetted book | +0.129 | **+0.293** |
+| Netting benefit | 14.4% | **33.8%** |
+| Book turnover | 28.0/yr | **6.2/yr** |
+
+Short-horizon reversal is a single-name microstructure effect — liquidity
+provision, bid-ask bounce — and it does not transfer to broad ETFs. Its IC
+decays from +0.026 fresh to +0.001 after five days, and neither the weekly
+(t = 1.76) nor the monthly-sampled (t = −1.79) estimate clears two standard
+errors.
+
+The class stays importable and `all_sleeves()` still returns it, so every
+measurement above is reproducible. Keeping it *in the book* because a variant
+looked good on the half that chose it is the exact error this repo exists to
+avoid.
+
+## Real commodity carry
+
+The audit recorded this as impossible on free data: *"DBC's roll is already
+inside its price series and cannot be separated without futures-curve data."*
+That was true of DBC alone and false of a **pair**.
+
+USO is a front-month WTI fund; USL is a 12-month ladder on the same underlying.
+Two funds differing only in maturity differ by exactly the roll, so their
+relative drift measures it — and both are free and daily from 2007.
+
+```
+roll yield, annualised:  mean −3.7%   sd 19.0%   min −117%   max +106%
+days in contango (negative carry): 62.8%
+```
+
+That matches crude's actual history, and it means the carry sleeve now applies
+the right measurement to each asset:
+
+| Asset class | Carry measure |
+|---|---|
+| Equities, credit, rates, REITs | trailing distribution yield |
+| Futures-based commodities (DBC) | **roll yield** |
+| Physically backed bullion (GLD, SLV) | none — no coupon, no roll |
+
+Previously DBC was excluded entirely (a zero dividend yield is a missing
+reading, not zero carry) and before that it was ranked permanently bottom, which
+was a statement about the data field rather than about carry. It now carries a
+real view.
+
+Its Sharpe did not improve. That is the honest outcome: the sleeve measures what
+it claims to measure, and what it measures does not pay on this sample.
+
 ## 4. Three things that did work
 
 **Netting sleeves into one book** rather than averaging return streams. When
@@ -243,19 +313,20 @@ sleeves with no edge, not from correlations breaking.
 
 Nothing.
 
-30 configurations (5 sleeves × 6 allocators) were tested on one 19-year sample.
+24 configurations (4 sleeves × 6 allocators) were tested on one 19-year sample,
+plus 12 reversal repair variants — 36 in all.
 Reporting the best cell's Sharpe is reporting the maximum of 25 correlated draws.
 
 | Candidate | Raw Sharpe | PSR vs 0 | Threshold | Deflated | BHY haircut | Survives |
 |---|---|---|---|---|---|---|
-| portfolio: inverse_vol | 0.255 | 0.870 | 0.457 | 0.187 | 0.000 | no |
-| portfolio: equal_weight | 0.235 | 0.849 | 0.457 | 0.165 | 0.000 | no |
-| best sleeve: trend | 0.450 | 0.976 | 0.457 | 0.488 | 0.297 | **no** |
+| portfolio: sharpe_tilt | 0.279 | 0.890 | 0.436 | 0.245 | 0.048 | no |
+| portfolio: equal_weight | 0.168 | 0.770 | 0.436 | 0.120 | 0.000 | no |
+| best sleeve: trend | 0.450 | 0.976 | 0.436 | 0.524 | 0.304 | **no** |
 
 `trend` is the only candidate whose probabilistic Sharpe clears 0.95 against
-zero — but the bar is not zero, it is the **0.457** expected maximum of 30
-zero-skill trials. Against that bar its deflated Sharpe is 0.488, and a
-Benjamini-Yekutieli haircut takes 0.450 down to **0.297**, a 34% cut.
+zero — but the bar is not zero, it is the **0.436** expected maximum of 24
+zero-skill trials. Against that bar its deflated Sharpe is 0.524, and a
+Benjamini-Yekutieli haircut takes 0.450 down to **0.304**, a 32% cut.
 
 The correct reading: this study establishes *relative* magnitudes — which
 decision matters more than which — and does not establish that any sleeve here

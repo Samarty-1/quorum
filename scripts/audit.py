@@ -170,7 +170,7 @@ def main() -> None:
     prices, dividends = load_spec_universe(args.refresh)
     prices = data.common_sample(prices)
     asset_returns = data.daily_returns(prices)
-    _, _, cash_annual = data.load(allow_fetch=False)
+    _, _, cash_annual, _ = data.load(allow_fetch=False)
     cash_daily = data.daily_cash_rate(cash_annual, prices.index)
     context = SleeveContext(prices=prices, dividends=dividends, cash_daily=cash_daily)
 

@@ -1,0 +1,26 @@
+selection    2007-04-12 .. 2016-12-14
+confirmation 2016-12-15 .. 2026-08-31
+
+SELECTION HALF ONLY -- the confirmation half is not looked at until the end
+
+ lookback concentration  band  sel_gross  sel_net  sel_t  turnover
+        5          full   1.0      0.467    0.153   0.59      59.4
+        5       tercile   1.0      0.379    0.067   0.27      64.7
+        3          full   1.0      0.307    0.021   0.08      53.9
+        3       tercile   1.0      0.319    0.010   0.04      61.7
+        5          full   0.0      0.355    0.010   0.04      67.3
+        5       tercile   0.0      0.334   -0.011  -0.04      71.9
+        3          full   0.0      0.312   -0.045  -0.17      65.4
+        3       tercile   0.0      0.284   -0.070  -0.27      70.2
+       10       tercile   1.0     -0.144   -0.331  -1.32      37.8
+       10          full   1.0     -0.163   -0.346  -1.38      32.9
+       10       tercile   0.0     -0.181   -0.423  -1.74      49.9
+       10          full   0.0     -0.186   -0.429  -1.78      46.1
+
+Best on the selection half: lookback=5, full, band=1.0 -> net 0.153
+Variants searched: 12
+
+CONFIRMATION HALF -- scored once
+  net Sharpe -0.133   t -0.48   turnover 57.3/yr
+
+  VERDICT: CUT -- the best variant did not survive

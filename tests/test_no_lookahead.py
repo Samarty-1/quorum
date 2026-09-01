@@ -15,7 +15,7 @@ from src import backtest
 from src.allocators import default_allocators
 from src.portfolio import PortfolioConfig, run_portfolio, sleeve_books, sleeve_return_streams
 from src.sleeves.base import SleeveContext
-from src.sleeves.strategies import default_sleeves
+from src.sleeves.strategies import all_sleeves, default_sleeves
 
 
 @pytest.fixture(scope="module")
@@ -68,7 +68,7 @@ def _corrupt_future(context: SleeveContext, cutoff: pd.Timestamp) -> SleeveConte
 
 
 class TestSleevesDoNotSeeTheFuture:
-    @pytest.mark.parametrize("sleeve", default_sleeves(), ids=lambda s: s.name)
+    @pytest.mark.parametrize("sleeve", all_sleeves(), ids=lambda s: s.name)
     def test_weights_before_the_cutoff_are_unchanged(self, sleeve, synthetic):
         cutoff = synthetic.prices.index[1800]
 
@@ -86,7 +86,7 @@ class TestSleevesDoNotSeeTheFuture:
 
 
 class TestSleeveInvariants:
-    @pytest.mark.parametrize("sleeve", default_sleeves(), ids=lambda s: s.name)
+    @pytest.mark.parametrize("sleeve", all_sleeves(), ids=lambda s: s.name)
     def test_unit_gross_exposure_when_live(self, sleeve, synthetic):
         weights = sleeve.weights(synthetic)
         gross = weights.abs().sum(axis=1)
@@ -94,7 +94,7 @@ class TestSleeveInvariants:
         assert live.any(), "sleeve never took a position"
         assert np.allclose(gross[live], 1.0), "sleeve is not unit-gross"
 
-    @pytest.mark.parametrize("sleeve", default_sleeves(), ids=lambda s: s.name)
+    @pytest.mark.parametrize("sleeve", all_sleeves(), ids=lambda s: s.name)
     def test_warmup_is_flat(self, sleeve, synthetic):
         weights = sleeve.weights(synthetic)
         if sleeve.warmup_days > 0:
@@ -103,19 +103,19 @@ class TestSleeveInvariants:
     @pytest.mark.parametrize("name", ["xs_momentum", "reversal", "carry", "value"])
     def test_cross_sectional_sleeves_are_dollar_neutral(self, name, synthetic):
         """These express relative views and must not smuggle in a market bet."""
-        sleeve = next(s for s in default_sleeves() if s.name == name)
+        sleeve = next(s for s in all_sleeves() if s.name == name)
         weights = sleeve.weights(synthetic)
         live = weights.abs().sum(axis=1) > 0
         assert np.allclose(weights[live].sum(axis=1), 0.0, atol=1e-9)
 
     def test_trend_is_allowed_to_be_directional(self, synthetic):
         """The one sleeve that may be net long or short -- that is its job."""
-        sleeve = next(s for s in default_sleeves() if s.name == "trend")
+        sleeve = next(s for s in all_sleeves() if s.name == "trend")
         weights = sleeve.weights(synthetic)
         live = weights.abs().sum(axis=1) > 0
         assert np.abs(weights[live].sum(axis=1)).max() > 0.01
 
-    @pytest.mark.parametrize("sleeve", default_sleeves(), ids=lambda s: s.name)
+    @pytest.mark.parametrize("sleeve", all_sleeves(), ids=lambda s: s.name)
     def test_rebalances_no_more_often_than_declared(self, sleeve, synthetic):
         """A sleeve declaring monthly must not actually trade every day."""
         weights = sleeve.weights(synthetic)
@@ -134,7 +134,7 @@ class TestPortfolioDoesNotSeeTheFuture:
         asset_returns = synthetic.prices.pct_change().iloc[1:]
         config = PortfolioConfig(lookback_days=252, cost_bps=5.0, target_vol=0.08)
 
-        sleeves = default_sleeves()
+        sleeves = all_sleeves()
         books = sleeve_books(sleeves, synthetic)
         sleeve_returns = sleeve_return_streams(books, asset_returns, 5.0)
         original = run_portfolio(books, sleeve_returns, asset_returns,
@@ -159,7 +159,7 @@ class TestPortfolioDoesNotSeeTheFuture:
         asset_returns = synthetic.prices.pct_change().iloc[1:]
         config = PortfolioConfig(lookback_days=252, cost_bps=5.0, target_vol=0.08)
 
-        sleeves = default_sleeves()
+        sleeves = all_sleeves()
         books = sleeve_books(sleeves, synthetic)
         streams = sleeve_return_streams(books, asset_returns, 5.0)
         original = run_portfolio(books, streams, asset_returns, default_allocators()[0], config)

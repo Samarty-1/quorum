@@ -57,6 +57,34 @@ UNIVERSE: dict[str, tuple[str, str, str]] = {
 # The sample must contain 2008. Every ticker above trades by this date.
 DEFAULT_START = "2007-01-01"
 
+# --- carry, per asset class -------------------------------------------------
+#
+# Carry is not one measurement. A dividend yield is the right reading for an
+# equity or a REIT, meaningless for gold, and actively misleading for a
+# futures-based commodity fund -- ranking DBC on its (zero) distribution yield
+# is a statement about the data field, not about carry.
+#
+# The right reading for a futures-based fund is ROLL YIELD, and the audit
+# recorded it as not implementable on free data because DBC's roll is already
+# inside its price series. That was wrong: a front-month fund and a
+# laddered-maturity fund on the same underlying differ by exactly the roll, so
+# their relative drift measures it. USO is front-month WTI, USL a 12-month
+# ladder, and both are free and daily from 2007.
+#
+# DBC is roughly half energy, so crude's term structure is a defensible proxy
+# for the broad index's roll. It is a proxy and is labelled as one.
+ROLL_PROXY_FRONT = "USO"      # front-month WTI
+ROLL_PROXY_LADDER = "USL"     # 12-month ladder, same underlying
+
+# How each universe member earns (or pays) carry.
+#   "distribution" -- the trailing dividend/coupon yield is the carry
+#   "roll"         -- futures-based; carry is the roll yield
+#   "none"         -- physically backed; no coupon and no roll to harvest
+CARRY_SOURCE: dict[str, str] = {
+    "GLD": "none", "SLV": "none",   # physically backed bullion
+    "DBC": "roll",                  # futures-based commodity index
+}
+
 # Risk-free proxy for excess returns. BIL only starts 2007-05, so the short end
 # comes from the 13-week bill yield instead, which has full history.
 CASH_YIELD = "^IRX"

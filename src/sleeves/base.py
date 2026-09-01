@@ -49,6 +49,11 @@ class SleeveContext:
     #: ticker -> asset class. Needed by any sleeve that must neutralise the
     #: structural ordering of asset classes before ranking across them.
     asset_class: dict[str, str] | None = None
+    #: Signal inputs that are NOT tradeable universe members -- currently the
+    #: front-month and laddered crude funds the roll-yield signal is built from.
+    #: Deliberately separate from `prices`: anything in `prices` is something a
+    #: sleeve may take a position in, and these are measurement instruments.
+    auxiliary: pd.DataFrame | None = None
 
 
 def rebalance_dates(index: pd.DatetimeIndex, frequency: str) -> pd.DatetimeIndex:
@@ -111,6 +116,35 @@ def rank_scores(values: pd.DataFrame) -> pd.DataFrame:
     ranked = values.rank(axis=1, pct=True)
     centred = 2.0 * (ranked - 0.5)
     return demean_cross_section(centred)
+
+
+def roll_yield(context: SleeveContext, front: str, ladder: str,
+               window_days: int = 126) -> pd.Series:
+    """Annualised roll yield, from a front-month and a laddered fund.
+
+    Two funds on the same underlying that differ only in maturity differ by
+    exactly the roll. In contango the front-month fund bleeds against the
+    ladder as it rolls up the curve; in backwardation it gains. So the relative
+    drift of the two IS the roll yield, and it needs no futures-curve data --
+    only two ETFs that both exist free and daily.
+
+    This is the measurement the audit recorded as impossible ("DBC's roll is
+    already inside its price series and cannot be separated without
+    futures-curve data"). That was true of DBC *alone*. It is not true of a
+    pair.
+
+    Trailing window, so the value at date t uses only data up to t.
+    """
+    if context.auxiliary is None:
+        return pd.Series(dtype=float)
+    if front not in context.auxiliary or ladder not in context.auxiliary:
+        return pd.Series(dtype=float)
+
+    aux = context.auxiliary.reindex(context.prices.index).ffill()
+    front_return = aux[front] / aux[front].shift(window_days) - 1.0
+    ladder_return = aux[ladder] / aux[ladder].shift(window_days) - 1.0
+    periods = TRADING_DAYS / window_days
+    return ((front_return - ladder_return) * periods).rename("roll_yield")
 
 
 def neutralise_within_class(scores: pd.DataFrame,

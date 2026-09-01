@@ -13,7 +13,7 @@ def main() -> None:
     ap.add_argument("--refresh", action="store_true", help="re-download over the cache")
     args = ap.parse_args()
 
-    prices, dividends, cash = data.load(args.start, refresh=args.refresh)
+    prices, dividends, cash, auxiliary = data.load(args.start, refresh=args.refresh)
     common = data.common_sample(prices)
 
     print(f"prices     {prices.shape[0]:>6} rows x {prices.shape[1]} assets "
@@ -22,6 +22,8 @@ def main() -> None:
           f"({common.index.min().date()} to {common.index.max().date()})")
     print(f"dividends  {len(dividends):>6} payments across {dividends['ticker'].nunique()} tickers")
     print(f"cash       {len(cash):>6} rows, latest {100 * cash.iloc[-1]:.2f}%")
+    print(f"auxiliary  {auxiliary.shape[0]:>6} rows x {auxiliary.shape[1]} "
+          f"roll-proxy series ({', '.join(auxiliary.columns)})")
     print()
     print("first trade date per asset:")
     for ticker in prices.columns:

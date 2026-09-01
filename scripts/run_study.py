@@ -69,7 +69,7 @@ def main() -> None:
     print("QUORUM -- five strategies, five ways of splitting capital between them")
     print("=" * 100)
 
-    prices, dividends, cash = data.load(allow_fetch=False)
+    prices, dividends, cash, auxiliary = data.load(allow_fetch=False)
     prices = data.common_sample(prices)
     cash_daily = data.daily_cash_rate(cash, prices.index)
 
@@ -85,6 +85,7 @@ def main() -> None:
         dividends=dividends,
         cash_daily=cash_daily,
         asset_class={t: meta[1] for t, meta in UNIVERSE.items()},
+        auxiliary=auxiliary,
     )
 
     selection, confirmation = split_by_date(asset_returns.index)
@@ -135,8 +136,11 @@ def main() -> None:
                                 "annual_return", "annual_vol", "max_drawdown",
                                 "turnover_annual"])
     print(sleeve_table.to_string(index=False))
-    print("\n    Costs are not a rounding error here: reversal turns over "
-          f"{sleeve_table.loc[sleeve_table.name == 'reversal', 'turnover_annual'].iloc[0]:.0f}x a year.")
+    busiest = sleeve_table.loc[sleeve_table["turnover_annual"].idxmax()]
+    print(f"\n    Costs are not a rounding error: the busiest sleeve ({busiest['name']}) "
+          f"turns over {busiest['turnover_annual']:.0f}x a year,")
+    print(f"    which is {busiest['gross_sharpe'] - busiest['sharpe']:+.3f} Sharpe "
+          f"of gross-to-net drag on that sleeve alone.")
 
     # ---- [1b] does sleeve performance persist across the split? -----------
     print("\n[1b] Sleeve Sharpe by half -- does past sleeve performance predict future?")

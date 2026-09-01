@@ -25,8 +25,10 @@ from src.sleeves.base import (
     inverse_vol_scale,
     neutralise_within_class,
     rank_scores,
+    roll_yield,
     trailing_dividend_yield,
 )
+from src.universe import CARRY_SOURCE, ROLL_PROXY_FRONT, ROLL_PROXY_LADDER
 
 
 class TrendFollowing(Sleeve):
@@ -97,11 +99,29 @@ class CrossSectionalMomentum(Sleeve):
 class ShortTermReversal(Sleeve):
     """Long recent losers, short recent winners, over a one-week window.
 
-    The highest-turnover sleeve here by a wide margin, and the one whose fate is
-    decided by transaction costs rather than by whether the effect exists. It is
-    included partly because it is the sharpest test of whether the cost model is
-    being taken seriously: at zero cost it looks excellent, and the interesting
-    question is what survives.
+    NOT IN THE DEFAULT BOOK. Kept because the measurement is worth keeping, and
+    because it is the sharpest test of whether the cost model is being taken
+    seriously -- at zero cost it looks like the third-best idea here.
+
+    Why it was cut
+    --------------
+    Short-horizon reversal is a single-name microstructure effect -- liquidity
+    provision, bid-ask bounce -- and it does not transfer to broad ETFs. The
+    signal's IC decays from +0.026 fresh to +0.001 after five days, and neither
+    the weekly (+0.026, t=1.76) nor the monthly-sampled (-0.054, t=-1.79)
+    estimate clears two standard errors. The sleeve's own weight
+    autocorrelation is -0.018 at five days: the position wanted next week is
+    uncorrelated with the one held.
+
+    Twelve repair variants were searched on the selection half -- lookbacks of
+    3, 5 and 10 days, full cross-section against terciles, with and without a
+    no-trade band (`scripts/reversal_search.py`). The best scored +0.153 there
+    and **-0.132** on the confirmation half. The search did not even find a
+    better configuration than the one already in use.
+
+    A sleeve whose best-of-twelve variant loses money out of sample does not
+    belong in a book, and keeping it because a variant looked good on the half
+    that chose it is the exact error this repo exists to avoid.
     """
 
     name = "reversal"
@@ -153,10 +173,23 @@ class Carry(Sleeve):
 
     def raw_weights(self, context: SleeveContext) -> pd.DataFrame:
         yields = trailing_dividend_yield(context)
-        # Assets that pay nothing (GLD, SLV, DBC hold no income) are excluded
-        # rather than ranked bottom: shorting gold because it has no coupon is
-        # a statement about commodities, not about carry.
+        # A zero distribution yield is not zero carry, it is a missing reading.
+        # Ranking gold bottom because it pays no coupon is a statement about the
+        # data field, not about carry.
         yields = yields.where(yields > 0)
+
+        # Each asset gets the carry measure that actually applies to it.
+        # Futures-based funds earn (or pay) roll yield, which is a real number
+        # and a real risk premium; physically backed bullion earns neither a
+        # coupon nor a roll and is left with no reading rather than a fake one.
+        roll = roll_yield(context, ROLL_PROXY_FRONT, ROLL_PROXY_LADDER)
+        for ticker, source in CARRY_SOURCE.items():
+            if ticker not in yields.columns:
+                continue
+            if source == "roll" and len(roll):
+                yields[ticker] = roll.reindex(yields.index)
+            else:
+                yields[ticker] = np.nan
         # Neutralised within asset class before ranking across it. Without this
         # the sleeve is a permanent long-credit, short-equity position rather
         # than a carry signal -- see neutralise_within_class.
@@ -205,5 +238,16 @@ class Value(Sleeve):
 
 
 def default_sleeves() -> list[Sleeve]:
-    """The book. Order is fixed so reports and tests line up."""
+    """The book. Order is fixed so reports and tests line up.
+
+    Four sleeves, not five. ShortTermReversal was cut after its best-of-twelve
+    repair variant scored -0.132 on the confirmation half -- see its docstring
+    and scripts/reversal_search.py. It remains importable, and
+    `all_sleeves()` still returns it, so the measurement stays reproducible.
+    """
+    return [TrendFollowing(), CrossSectionalMomentum(), Carry(), Value()]
+
+
+def all_sleeves() -> list[Sleeve]:
+    """Every sleeve including the cut one, for diagnostics and comparison."""
     return [TrendFollowing(), CrossSectionalMomentum(), ShortTermReversal(), Carry(), Value()]

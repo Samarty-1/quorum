@@ -27,19 +27,26 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.universe import CASH_YIELD, DEFAULT_START, tickers
+from src.universe import (
+    CASH_YIELD,
+    DEFAULT_START,
+    ROLL_PROXY_FRONT,
+    ROLL_PROXY_LADDER,
+    tickers,
+)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 PRICES_FILE = DATA_DIR / "prices.parquet"
 DIVIDENDS_FILE = DATA_DIR / "dividends.parquet"
 CASH_FILE = DATA_DIR / "cash.parquet"
+AUXILIARY_FILE = DATA_DIR / "auxiliary.parquet"
 
 
 class DataUnavailable(RuntimeError):
     """Raised when a fetch is needed but cannot be performed."""
 
 
-def _fetch_from_yahoo(start: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+def _fetch_from_yahoo(start: str):
     import yfinance as yf
 
     symbols = tickers()
@@ -81,39 +88,61 @@ def _fetch_from_yahoo(start: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series
     # ^IRX quotes an annualised percentage; the backtest wants a daily rate.
     cash = (cash.dropna() / 100.0).rename("annual_yield")
 
-    return price_frame, dividend_frame, cash
+    # Auxiliary series: not tradeable universe members, only signal inputs.
+    # The front-month and laddered crude funds differ by exactly the roll, so
+    # their relative drift measures it (see universe.ROLL_PROXY_FRONT).
+    auxiliary: dict[str, pd.Series] = {}
+    for symbol in (ROLL_PROXY_FRONT, ROLL_PROXY_LADDER):
+        series = yf.download(symbol, start=start, progress=False,
+                             auto_adjust=True)["Close"]
+        if isinstance(series, pd.DataFrame):
+            series = series.iloc[:, 0]
+        series.index = pd.to_datetime(series.index).tz_localize(None)
+        auxiliary[symbol] = series.dropna()
+    auxiliary_frame = pd.DataFrame(auxiliary).sort_index()
+
+    return price_frame, dividend_frame, cash, auxiliary_frame
 
 
 def load(start: str = DEFAULT_START, refresh: bool = False, allow_fetch: bool = True):
-    """Prices (wide), dividends (long), and the cash yield.
+    """Prices (wide), dividends (long), the cash yield, and auxiliary series.
 
     Reads the on-disk cache unless `refresh`. Set `allow_fetch=False` in tests
     and CI so a missing cache fails loudly rather than quietly reaching for the
     network and producing a different sample.
+
+    The auxiliary frame holds signal inputs that are NOT tradeable universe
+    members -- currently the front-month and laddered crude funds the commodity
+    carry signal is built from. Keeping them out of `prices` matters: anything
+    in `prices` is something a sleeve may take a position in, and these are
+    measurement instruments, not holdings.
     """
-    have_cache = PRICES_FILE.exists() and DIVIDENDS_FILE.exists() and CASH_FILE.exists()
+    have_cache = (PRICES_FILE.exists() and DIVIDENDS_FILE.exists()
+                  and CASH_FILE.exists() and AUXILIARY_FILE.exists())
 
     if have_cache and not refresh:
         prices = pd.read_parquet(PRICES_FILE)
         dividends = pd.read_parquet(DIVIDENDS_FILE)
         cash = pd.read_parquet(CASH_FILE)["annual_yield"]
-        return prices, dividends, cash
+        auxiliary = pd.read_parquet(AUXILIARY_FILE)
+        return prices, dividends, cash, auxiliary
 
     if not allow_fetch:
         raise DataUnavailable(
-            f"no cached data at {PRICES_FILE} and allow_fetch=False; "
+            f"cache incomplete under {DATA_DIR} and allow_fetch=False; "
             "run `python -m scripts.fetch_data` first"
         )
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        prices, dividends, cash = _fetch_from_yahoo(start)
+        prices, dividends, cash, auxiliary = _fetch_from_yahoo(start)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     prices.to_parquet(PRICES_FILE)
     dividends.to_parquet(DIVIDENDS_FILE)
     cash.to_frame().to_parquet(CASH_FILE)
-    return prices, dividends, cash
+    auxiliary.to_parquet(AUXILIARY_FILE)
+    return prices, dividends, cash, auxiliary
 
 
 def common_sample(prices: pd.DataFrame, min_assets: int | None = None) -> pd.DataFrame:
