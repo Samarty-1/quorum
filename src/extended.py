@@ -50,6 +50,7 @@ import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 EXTENDED_FILE = DATA_DIR / "extended_prices.parquet"
+WIDE_FILE = DATA_DIR / "wide_prices.parquet"
 
 # ticker -> (name, asset_class, note)
 EXTENDED_UNIVERSE: dict[str, tuple[str, str, str]] = {
@@ -75,6 +76,93 @@ EXTENDED_UNIVERSE: dict[str, tuple[str, str, str]] = {
 
 #: The short-duration Treasury fund is the last to start, and it sets the sample.
 EXTENDED_START = "1991-11-01"
+
+# --- the wide universe ------------------------------------------------------
+#
+# Breadth is the one improvement to a trend book that theory predicts in
+# advance rather than discovers in the data. A trend signal on N markets with
+# roughly independent trends earns a Sharpe scaling with the square root of the
+# number of INDEPENDENT bets, so the way to raise a trend book's Sharpe is to
+# give it more markets -- not to tune its lookback.
+#
+# That distinction matters: the signal specification below is unchanged from the
+# 12-fund test. Only the opportunity set differs, so any improvement is
+# attributable to breadth rather than to a search over parameters. Real managed
+# futures programmes trade 50-200 markets for exactly this reason, and the 12
+# available here is far below where the diversification stops paying.
+#
+# Every fund below exists by 1991-11, so the wide universe costs no history.
+#
+# MEASURED RESULT: breadth did NOT help, and the reason is recorded here rather
+# than left as folklore. Trend Sharpe on 40 markets was 0.580 against 0.614 on
+# the 12-fund core, with a worse drawdown. The diagnostic explains it: mean
+# pairwise correlation of TREND RETURNS rose from +0.204 to +0.253 and effective
+# independent bets FELL from 1.35 to 1.06. Eighteen of the additions are US
+# equity sectors, which all trend on the same cycle -- so the wide universe holds
+# more markets and fewer bets.
+#
+# Dropping the sectors and keeping only the genuinely diversifying additions
+# (international equity and fixed income, 22 markets) gives 0.638 and 1.39
+# effective bets -- the best configuration found, and only +0.024 over the
+# 12-fund core. Sharpe tracks effective bets, not market count.
+#
+# What would actually raise it: currencies, international rates, and physical
+# commodity futures -- genuinely independent drivers. None is available free
+# with 1991 history, which makes this a data constraint rather than a code one.
+WIDE_EXTRA: dict[str, tuple[str, str, str]] = {
+    # --- international equity: genuinely different drivers ---
+    "VEURX": ("Vanguard European", "Equity", "Europe"),
+    "VPACX": ("Vanguard Pacific", "Equity", "Pacific"),
+    "PRASX": ("T. Rowe Price New Asia", "Equity", "Asia ex-Japan"),
+    "FICDX": ("Fidelity Canada", "Equity", "Canada"),
+    "PRIDX": ("T. Rowe Price Intl Discovery", "Equity", "international small cap"),
+    # --- US equity, style ---
+    "VWNDX": ("Vanguard Windsor", "Equity", "US value"),
+    "PRFDX": ("T. Rowe Price Equity Income", "Equity", "US dividend/value"),
+    # --- US equity sectors: correlated with each other, but each trends on its
+    #     own cycle, which is what a cross-sectional trend book needs ---
+    "FSPHX": ("Fidelity Select Health", "Equity", "healthcare"),
+    "FSPTX": ("Fidelity Select Technology", "Equity", "technology"),
+    "FSELX": ("Fidelity Select Electronics", "Equity", "semiconductors"),
+    "FIDSX": ("Fidelity Select Financials", "Equity", "financials"),
+    "FSRBX": ("Fidelity Select Banking", "Equity", "banks"),
+    "FSPCX": ("Fidelity Select Insurance", "Equity", "insurance"),
+    "FSLBX": ("Fidelity Select Brokerage", "Equity", "brokers"),
+    "FSCHX": ("Fidelity Select Chemicals", "Equity", "chemicals"),
+    "FSDPX": ("Fidelity Select Materials", "Equity", "materials"),
+    "FSRPX": ("Fidelity Select Retail", "Equity", "retail"),
+    "FSAVX": ("Fidelity Select Automotive", "Equity", "autos"),
+    "FSHOX": ("Fidelity Select Construction", "Equity", "construction"),
+    "FSTCX": ("Fidelity Select Telecom", "Equity", "telecom"),
+    "FBIOX": ("Fidelity Select Biotech", "Equity", "biotech"),
+    "FSENX": ("Fidelity Select Energy", "Equity", "energy"),
+    "FSUTX": ("Fidelity Select Utilities", "Equity", "utilities"),
+    "FSAGX": ("Fidelity Select Gold", "RealAsset", "gold miners"),
+    # --- fixed income breadth ---
+    "VFIIX": ("Vanguard GNMA", "Rates", "mortgage-backed"),
+    "FGOVX": ("Fidelity Government Income", "Rates", "government"),
+    "VWLTX": ("Vanguard Long-Term Tax-Exempt", "Rates", "long municipal"),
+    "VWAHX": ("Vanguard High-Yield Tax-Exempt", "Credit", "high-yield municipal"),
+    # VCVSX (Vanguard Convertible) was liquidated in April 2021 and is
+    # deliberately excluded. Its NAV series simply stops, so including it would
+    # either truncate the whole panel at 2021 or require forward-filling a fund
+    # that no longer exists. Noted rather than silently dropped: it is a real
+    # instance of the survivorship the module docstring warns about, and every
+    # OTHER fund here is one that lived.
+}
+
+
+def wide_universe() -> dict[str, tuple[str, str, str]]:
+    """The 12-fund core plus everything else that exists by 1991-11."""
+    return {**EXTENDED_UNIVERSE, **WIDE_EXTRA}
+
+
+def wide_tickers() -> list[str]:
+    return sorted(wide_universe())
+
+
+def wide_asset_class_map() -> dict[str, str]:
+    return {t: meta[1] for t, meta in wide_universe().items()}
 
 #: Where the ETF study's sample begins. Everything before this date has never
 #: been examined by any strategy in this repo, which is what makes it a real
@@ -126,6 +214,32 @@ def load(refresh: bool = False, allow_fetch: bool = True) -> pd.DataFrame:
     frame = pd.DataFrame(series).sort_index()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(EXTENDED_FILE)
+    return frame
+
+
+def load_wide(refresh: bool = False, allow_fetch: bool = True) -> pd.DataFrame:
+    """Daily NAV series for the wide universe."""
+    if WIDE_FILE.exists() and not refresh:
+        return pd.read_parquet(WIDE_FILE)
+    if not allow_fetch:
+        raise FileNotFoundError(f"no cached data at {WIDE_FILE}")
+
+    import yfinance as yf
+
+    series: dict[str, pd.Series] = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for ticker in wide_tickers():
+            data = yf.download(ticker, start="1980-01-01", auto_adjust=True,
+                               progress=False)["Close"]
+            if isinstance(data, pd.DataFrame):
+                data = data.iloc[:, 0]
+            data.index = pd.to_datetime(data.index).tz_localize(None)
+            series[ticker] = data.dropna()
+
+    frame = pd.DataFrame(series).sort_index()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    frame.to_parquet(WIDE_FILE)
     return frame
 
 

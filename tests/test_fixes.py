@@ -714,3 +714,49 @@ class TestExtendedUniverseCandidates:
         assert len(extended.EXTENDED_UNIVERSE) >= 10
         classes = set(extended.asset_class_map().values())
         assert {"Equity", "Rates", "Credit", "RealAsset"} <= classes
+
+
+class TestBreadthDoesNotAutomaticallyHelp:
+    """More markets is not more diversification, and the code should say so.
+
+    Adding 28 markets to the trend book took effective independent bets from
+    1.35 down to 1.06 and the Sharpe from 0.614 to 0.580, because 18 of the
+    additions were US equity sectors that all trend together.
+    """
+
+    def test_wide_universe_costs_no_history(self):
+        from src import extended
+
+        wide = extended.wide_universe()
+        assert len(wide) > len(extended.EXTENDED_UNIVERSE)
+        # The core funds must all still be there.
+        assert set(extended.EXTENDED_UNIVERSE) <= set(wide)
+
+    def test_liquidated_fund_is_excluded(self):
+        """VCVSX was wound up in 2021. Including it truncates the whole panel."""
+        from src import extended
+
+        assert "VCVSX" not in extended.wide_universe()
+
+    def test_effective_bets_falls_when_correlated_markets_are_added(self):
+        """The mechanism, on synthetic data: bolting a block of near-identical
+        markets onto a diversified set lowers the effective bet count even
+        though the market count rises."""
+        from src.risk import effective_bets, ledoit_wolf_covariance
+
+        rng = np.random.default_rng(81)
+        n = 1500
+        diversified = rng.normal(0, 0.01, size=(n, 4))
+        sector_driver = rng.normal(0, 0.01, size=(n, 1))
+        sectors = sector_driver + rng.normal(0, 0.002, size=(n, 12))
+
+        narrow = pd.DataFrame(diversified)
+        wide = pd.DataFrame(np.hstack([diversified, sectors]))
+
+        def bets(frame):
+            covariance, _ = ledoit_wolf_covariance(frame)
+            equal = np.full(frame.shape[1], 1.0 / frame.shape[1])
+            return effective_bets(equal, covariance)
+
+        assert wide.shape[1] > narrow.shape[1], "precondition: more markets"
+        assert bets(wide) < bets(narrow), "but fewer independent bets"
