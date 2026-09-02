@@ -469,7 +469,7 @@ def main() -> None:
     # =====================================================================
     section("[H] ERC vs MINIMUM VARIANCE -- which is structurally more stable?")
     # =====================================================================
-    print("\nAllocator weight stability (monthly weight changes across the 5 sleeves):")
+    print("\nAllocator weight stability (monthly weight changes across the sleeves):")
     rows = []
     for name, portfolio in portfolios.items():
         w = portfolio.sleeve_weights.reindex(monthly).dropna()

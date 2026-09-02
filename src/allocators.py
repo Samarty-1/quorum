@@ -162,7 +162,7 @@ class MinimumVariance(Allocator):
 
     Long-only is enforced by projection rather than by a QP solver: solve the
     unconstrained problem, zero the negatives, and re-solve on the survivors.
-    Crude, but it terminates, and on five sleeves it reaches the same answer a
+    Crude, but it terminates, and on a handful of sleeves it reaches the same answer a
     proper active-set method would.
     """
 
@@ -223,7 +223,7 @@ class TrailingSharpeTilt(Allocator):
     #: than the differences between these sleeves. Measured on the six-month
     #: version, allocated weight correlated +0.13 with a sleeve's trailing
     #: returns and -0.10 with its NEXT month: it was buying sleeves after their
-    #: good runs, and those runs then reverted. Four of five sleeves showed a
+    #: good runs, and those runs then reverted. Most sleeves showed a
     #: negative correlation between weight and subsequent return.
     #:
     #: Three years cuts the standard error to about 0.58 and makes the tilt a
@@ -283,7 +283,7 @@ class EdgeGated(Allocator):
 
     The measurements it exists to answer:
 
-    * Three of five sleeves lost money out of sample, and no allocation scheme
+    * Most sleeves lost money out of sample, and no allocation scheme
       rescues a book of negative-edge components. Diversification reduces
       variance; it does not manufacture expected return.
     * Which sleeves were funded moved the confirmation-half Sharpe more than the

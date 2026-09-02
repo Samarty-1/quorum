@@ -5,7 +5,7 @@ Why ETFs and not single stocks
 A multi-strategy book needs sleeves that behave differently from each other,
 and the cleanest source of that difference is asset class, not stock selection.
 Trend following earns its living in bonds and commodities as much as equities;
-a single-stock universe would leave three of the five sleeves trading the same
+a single-stock universe would leave most of the sleeves trading the same
 underlying risk and would make the diversification question uninteresting.
 
 It also sidesteps two data problems this repo cannot honestly solve on free

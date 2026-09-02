@@ -228,7 +228,8 @@ def load(refresh: bool = False, allow_fetch: bool = True) -> pd.DataFrame:
 
     if not allow_fetch:
         raise FileNotFoundError(
-            f"no cached data at {EXTENDED_FILE}; run scripts/fetch_extended.py"
+            f"no cached data at {EXTENDED_FILE}. "
+            "Run `python -m scripts.research_edge` first -- it fetches and caches it."
         )
 
     import yfinance as yf
@@ -255,7 +256,10 @@ def load_wide(refresh: bool = False, allow_fetch: bool = True) -> pd.DataFrame:
     if WIDE_FILE.exists() and not refresh:
         return pd.read_parquet(WIDE_FILE)
     if not allow_fetch:
-        raise FileNotFoundError(f"no cached data at {WIDE_FILE}")
+        raise FileNotFoundError(
+            f"no cached wide universe at {WIDE_FILE}. "
+            "Run `python -m scripts.research_edge` first -- it fetches and caches it."
+        )
 
     import yfinance as yf
 

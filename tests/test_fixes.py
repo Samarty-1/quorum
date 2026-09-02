@@ -717,11 +717,19 @@ class TestExtendedUniverseCandidates:
 
 
 class TestBreadthDoesNotAutomaticallyHelp:
-    """More markets is not more diversification, and the code should say so.
+    """More markets is not automatically a better book -- but not for the reason
+    first published here.
 
-    Adding 28 markets to the trend book took effective independent bets from
-    1.35 down to 1.06 and the Sharpe from 0.614 to 0.580, because 18 of the
-    additions were US equity sectors that all trend together.
+    The original claim was that adding 28 markets took effective independent
+    bets from 1.35 to 1.06. That was an artifact of a degenerate metric (see
+    TestBreadthMetrics). Measured properly, the wide universe has MORE
+    independent bets -- 12.69 against the core's 5.26 -- and still scores worse
+    (0.577 against 0.611).
+
+    The binding variable is per-market SIGNAL QUALITY: the 18 US equity sector
+    funds carry a mean trend Sharpe of 0.156 against 0.227 for the core and
+    0.250 for the diversifying additions, and an equal-weighted book dilutes
+    directly.
     """
 
     def test_wide_universe_costs_no_history(self):
@@ -738,28 +746,54 @@ class TestBreadthDoesNotAutomaticallyHelp:
 
         assert "VCVSX" not in extended.wide_universe()
 
-    def test_effective_bets_falls_when_correlated_markets_are_added(self):
-        """The mechanism, on synthetic data: bolting a block of near-identical
-        markets onto a diversified set lowers the effective bet count even
-        though the market count rises."""
-        from src.risk import effective_bets, ledoit_wolf_covariance
+    def test_added_markets_raise_or_lower_bets_by_how_correlated_they_are(self):
+        """The corrected mechanism, and it cuts both ways.
+
+        An earlier version asserted that adding correlated markets always LOWERS
+        the bet count. That only passed because it used the degenerate
+        portfolio-level metric, and it is not what the real data does: the 18 US
+        sector funds correlate about 0.39 with each other and raised the count
+        from 5.26 to 12.69.
+
+        Near-clones do lower it. Moderately correlated markets raise it. The
+        count is not a proxy for "should I add these".
+        """
+        from src.risk import spectral_bets
 
         rng = np.random.default_rng(81)
-        n = 1500
-        diversified = rng.normal(0, 0.01, size=(n, 4))
-        sector_driver = rng.normal(0, 0.01, size=(n, 1))
-        sectors = sector_driver + rng.normal(0, 0.002, size=(n, 12))
+        n = 4000
+        base = rng.normal(0, 0.01, size=(n, 4))
+        driver = rng.normal(0, 0.01, size=(n, 1))
 
-        narrow = pd.DataFrame(diversified)
-        wide = pd.DataFrame(np.hstack([diversified, sectors]))
+        # rho = sigma_d^2 / (sigma_d^2 + sigma_i^2); 0.004 gives ~0.86, 0.0122 ~0.40.
+        clones = driver + rng.normal(0, 0.004, size=(n, 12))
+        moderate = driver + rng.normal(0, 0.0122, size=(n, 12))
 
-        def bets(frame):
-            covariance, _ = ledoit_wolf_covariance(frame)
-            equal = np.full(frame.shape[1], 1.0 / frame.shape[1])
-            return effective_bets(equal, covariance)
+        narrow = spectral_bets(np.cov(base.T))
+        with_clones = spectral_bets(np.cov(np.hstack([base, clones]).T))
+        with_moderate = spectral_bets(np.cov(np.hstack([base, moderate]).T))
 
-        assert wide.shape[1] > narrow.shape[1], "precondition: more markets"
-        assert bets(wide) < bets(narrow), "but fewer independent bets"
+        assert with_clones < narrow, "near-clones add almost no independent variation"
+        assert with_moderate > narrow,             "moderately correlated markets DO add bets -- as the real sectors did"
+        assert with_moderate > with_clones
+
+    def test_a_weak_signal_block_lowers_the_equal_weighted_book(self):
+        """Why breadth failed, stated as a property: equal-weighting a strong
+        set with a weak one lands between them, so adding weak markets dilutes
+        however independent they are."""
+        rng = np.random.default_rng(82)
+        n = 4000
+        strong = rng.normal(0.0006, 0.01, size=(n, 4))     # good per-market edge
+        weak = rng.normal(0.0001, 0.01, size=(n, 12))      # independent but weak
+
+        def sharpe(block):
+            book = block.mean(axis=1)
+            return float(book.mean() / book.std() * np.sqrt(252))
+
+        strong_only = sharpe(strong)
+        combined = sharpe(np.hstack([strong, weak]))
+        assert combined < strong_only, "diluting a strong set with a weak one hurts"
+        assert combined > sharpe(weak), "and it still beats the weak set alone"
 
 
 class TestBreadthMetrics:

@@ -4,7 +4,7 @@ Position sizing is not a strategy, it is the constraint every strategy runs
 inside. Three pieces here, in the order they matter.
 
 **Covariance estimation.** Every allocator below the equal-weight one needs a
-covariance matrix, and the sample covariance of five sleeves over a two-year
+covariance matrix, and the sample covariance of a handful of sleeves over a two-year
 window is estimated from about 500 observations for 15 free parameters. That is
 enough to be badly wrong in a specific way: the sample matrix systematically
 overstates the spread of its own eigenvalues, so the smallest-variance direction

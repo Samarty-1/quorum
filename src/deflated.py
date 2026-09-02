@@ -1,11 +1,12 @@
-"""What a Sharpe ratio is worth after you account for having looked 25 times.
+"""What a Sharpe ratio is worth after you account for how many you looked at.
 
-The study tests 5 sleeves x 5 allocators, plus risk-overlay variants. Reporting
-the best cell's Sharpe ratio is reporting the maximum of a couple of dozen
-correlated draws, and the expected maximum of N draws from a zero-mean
-distribution is emphatically not zero. At N = 25 and this sample length the
-inflation is on the order of half a Sharpe unit -- comfortably larger than every
-difference the study is trying to detect.
+The studies here have scored 53 configurations across one panel -- sleeves times
+allocators, repair variants, breadth universes, signal variants. Reporting the
+best cell's Sharpe is reporting the maximum of 53 correlated draws, and the
+expected maximum of N draws from a zero-mean distribution is emphatically not
+zero. At this N and this sample length the inflation is on the order of half a
+Sharpe unit, comfortably larger than every difference the studies are trying to
+detect.
 
 Two corrections, which answer different questions:
 
@@ -146,9 +147,9 @@ def haircut_sharpe(annual_sharpe: float, n_years: float, n_trials: int,
     elif method == "bhy":
         # Benjamini-Yekutieli multiplier c(N) = sum_{i=1..N} 1/i, which is what
         # makes the procedure valid under arbitrary dependence between trials.
-        # These trials ARE dependent -- five allocators over the same five
-        # sleeves -- so the independence-assuming version would be too lenient.
-        # c(25) is about 3.8, against Bonferroni's factor of 25.
+        # These trials ARE dependent -- the same sleeves scored under several
+        # allocators -- so the independence-assuming version is too lenient.
+        # c(53) is about 4.6, against Bonferroni's factor of 53.
         c = float(np.sum(1.0 / np.arange(1, n_trials + 1)))
         adjusted = min(p_value * c, 1.0)
     else:

@@ -1,4 +1,4 @@
-"""The study: does running five strategies beat running one?
+"""The study: does running several strategies beat running one?
 
     python -m scripts.run_study
 
@@ -7,9 +7,9 @@ Structure, and the discipline behind it
 The sample is split by date once, up front. Everything that could be a choice --
 which allocator, whether to volatility-target, whether the drawdown throttle
 helps -- is decided on the SELECTION half. The CONFIRMATION half is scored once,
-at the end, and not returned to. Without that split, picking the best of five
+at the end, and not returned to. Without that split, picking the best of six
 allocators on the full sample and reporting its number is just publishing the
-maximum of five noisy draws.
+maximum of six noisy draws.
 
 Sleeve parameters are literature defaults and were never tuned, so they do not
 consume the selection half.
@@ -66,7 +66,8 @@ def main() -> None:
     args = ap.parse_args()
 
     print("=" * 100)
-    print("QUORUM -- five strategies, five ways of splitting capital between them")
+    print(f"QUORUM -- {len(default_sleeves())} strategy sleeves, "
+          f"{len(default_allocators())} ways of splitting capital between them")
     print("=" * 100)
 
     prices, dividends, cash, auxiliary = data.load(allow_fetch=False)
@@ -159,7 +160,7 @@ def main() -> None:
         persistence["confirmation_sharpe"], method="spearman")
     agree = int((persistence["same_sign"] == "yes").sum())
     print(f"\n    rank correlation across halves     {rank_correlation:+.3f} "
-          f"(5 sleeves -- indicative only)")
+          f"({len(persistence)} sleeves -- indicative only)")
     print(f"    sleeves keeping their sign         {agree} of {len(persistence)}")
 
     # ---- [2] are they actually different? ---------------------------------

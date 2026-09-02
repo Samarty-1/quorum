@@ -34,9 +34,9 @@ from src.sleeves.strategies import TrendFollowing
 warnings.filterwarnings("ignore")
 CHARTS = Path(__file__).resolve().parent.parent / "charts"
 
-SECTORS = {"FSPHX", "FSPTX", "FSELX", "FIDSX", "FSRBX", "FSPCX", "FSLBX", "FSCHX",
-           "FSDPX", "FSRPX", "FSAVX", "FSHOX", "FSTCX", "FBIOX", "FSENX", "FSUTX",
-           "VWNDX", "PRFDX"}
+# Imported, not duplicated: if the study's definition of a sector fund ever
+# changes, a local copy here would let the charts silently disagree with it.
+SECTORS = extended.US_SECTOR_FUNDS
 
 INK = "#1f2a37"
 ACCENT = "#0b6bcb"
@@ -56,9 +56,16 @@ def style(ax, title: str, ylabel: str = "") -> None:
 
 
 def build(prices: pd.DataFrame, cost: float = 5.0):
+    """Trend on one universe, on the SAME cost basis the reports use.
+
+    Volatility-scaled costs, not a flat rate. A chart that quotes a Sharpe the
+    committed report does not contain is worse than no chart -- the first
+    version of this used a flat 5bps and drew 0.638 beside a table saying 0.635.
+    """
     total = prices.pct_change().iloc[1:]
     cash = total["VFISX"]
     excess = total.sub(cash, axis=0)
+    costs = backtest.volatility_scaled_costs(cost, excess.mean(axis=1))
     context = SleeveContext(
         prices=prices,
         dividends=pd.DataFrame(columns=["ticker", "date", "amount"]),
@@ -67,9 +74,9 @@ def build(prices: pd.DataFrame, cost: float = 5.0):
                      if k in prices.columns},
     )
     sleeve = TrendFollowing()
-    config = PortfolioConfig(cost_bps=cost, target_vol=0.08, sleeve_target_vol=0.10)
+    config = PortfolioConfig(cost_bps=costs, target_vol=0.08, sleeve_target_vol=0.10)
     books = vol_target_sleeves(sleeve_books([sleeve], context), excess, config, [sleeve])
-    return backtest.run(books["trend"], excess, cost).returns, excess
+    return backtest.run(books["trend"], excess, costs).returns, excess
 
 
 def main() -> None:

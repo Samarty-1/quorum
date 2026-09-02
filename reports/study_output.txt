@@ -1,5 +1,5 @@
 ====================================================================================================
-QUORUM -- five strategies, five ways of splitting capital between them
+QUORUM -- 4 strategy sleeves, 6 ways of splitting capital between them
 ====================================================================================================
 
 15 assets, 4877 days (2007-04-12 to 2026-08-31)
@@ -25,7 +25,7 @@ xs_momentum             0.368                0.389       yes
       carry            -0.497               -0.345       yes
       value             0.127               -0.382        NO
 
-    rank correlation across halves     +0.800 (5 sleeves -- indicative only)
+    rank correlation across halves     +0.800 (4 sleeves -- indicative only)
     sleeves keeping their sign         3 of 4
 
 [2] Sleeve correlation (net, full sample)

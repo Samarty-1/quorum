@@ -1,4 +1,4 @@
-"""The five sleeves.
+"""The sleeves.
 
 Chosen to be genuinely different from one another, which is the only thing that
 makes a multi-strategy book worth building. Two of them -- cross-sectional
