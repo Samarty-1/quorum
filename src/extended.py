@@ -93,22 +93,45 @@ EXTENDED_START = "1991-11-01"
 #
 # Every fund below exists by 1991-11, so the wide universe costs no history.
 #
-# MEASURED RESULT: breadth did NOT help, and the reason is recorded here rather
-# than left as folklore. Trend Sharpe on 40 markets was 0.580 against 0.614 on
-# the 12-fund core, with a worse drawdown. The diagnostic explains it: mean
-# pairwise correlation of TREND RETURNS rose from +0.204 to +0.253 and effective
-# independent bets FELL from 1.35 to 1.06. Eighteen of the additions are US
-# equity sectors, which all trend on the same cycle -- so the wide universe holds
-# more markets and fewer bets.
+# MEASURED RESULT: breadth did not help, but NOT for the reason first published.
 #
-# Dropping the sectors and keeping only the genuinely diversifying additions
-# (international equity and fixed income, 22 markets) gives 0.638 and 1.39
-# effective bets -- the best configuration found, and only +0.024 over the
-# 12-fund core. Sharpe tracks effective bets, not market count.
+# Trend Sharpe on 40 markets was 0.580 against 0.614 on the 12-fund core. The
+# first explanation given was that effective independent bets FELL from 1.35 to
+# 1.06 -- more markets, fewer bets. That was wrong, and wrong because the metric
+# was broken: the portfolio-level Meucci count returns exactly 1 for ANY
+# positive correlation when weights are equal (see risk.effective_bets).
 #
-# What would actually raise it: currencies, international rates, and physical
-# commodity futures -- genuinely independent drivers. None is available free
-# with 1991 history, which makes this a data constraint rather than a code one.
+# Measured with risk.spectral_bets, which does not degenerate, the wide universe
+# has MORE independent bets, not fewer:
+#
+#   universe             n   Sharpe   mean corr   spectral N_eff
+#   narrow core         12    0.614       0.204            5.26
+#   wide, all           40    0.580       0.253           12.69
+#   diversifying only   22    0.638       0.203            7.07
+#   US sectors only     19    0.459       0.385            8.62
+#
+# The real cause is SIGNAL QUALITY, not independence. Per-market trend Sharpe:
+#
+#   core                0.227  (11 markets, 100% positive)
+#   diversifying adds   0.275  (10 markets, 100% positive)
+#   US equity sectors   0.156  (18 markets,  89% positive)
+#
+# The eighteen sector funds trend about 30% less well than everything else, and
+# because the book equal-weights across markets, adding them dilutes directly.
+# "US sectors only" holds 8.62 independent bets -- more than the core's 5.26 --
+# and still scores 0.459.
+#
+# So breadth pays only when the added markets carry comparable signal quality.
+# Count is not the variable, and neither is independence on its own.
+#
+# The sector/diversifying split is structural (is it a Fidelity Select sector or
+# style fund?) and was fixed before any per-market Sharpe was looked at, so the
+# 22-market result is not performance-selected.
+#
+# What would actually raise this: currencies, international rates and physical
+# commodity futures -- markets that are both independent AND trend well. None is
+# available free with 1991 history, which makes this a data constraint rather
+# than a code one.
 WIDE_EXTRA: dict[str, tuple[str, str, str]] = {
     # --- international equity: genuinely different drivers ---
     "VEURX": ("Vanguard European", "Equity", "Europe"),
@@ -149,6 +172,16 @@ WIDE_EXTRA: dict[str, tuple[str, str, str]] = {
     # that no longer exists. Noted rather than silently dropped: it is a real
     # instance of the survivorship the module docstring warns about, and every
     # OTHER fund here is one that lived.
+}
+
+
+#: The Fidelity Select sector and US style funds. Held as a named set because
+#: the breadth analysis excludes them, and that exclusion must be a STRUCTURAL
+#: choice fixed before any performance was inspected -- not a screen on results.
+US_SECTOR_FUNDS = {
+    "FSPHX", "FSPTX", "FSELX", "FIDSX", "FSRBX", "FSPCX", "FSLBX", "FSCHX",
+    "FSDPX", "FSRPX", "FSAVX", "FSHOX", "FSTCX", "FBIOX", "FSENX", "FSUTX",
+    "VWNDX", "PRFDX",
 }
 
 

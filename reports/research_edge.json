@@ -1,6 +1,6 @@
 {
   "sample": {
-    "funds": 12,
+    "funds": 22,
     "start": "1991-11-04",
     "end": "2026-08-31",
     "years": 34.8
@@ -8,146 +8,146 @@
   "candidates": [
     {
       "sleeve": "trend",
-      "pristine_sharpe": 0.903,
-      "pristine_t": 3.18,
-      "familiar_sharpe": 0.383,
-      "familiar_t": 1.64,
-      "full_sharpe": 0.611,
-      "full_t": 3.38,
+      "pristine_sharpe": 0.971,
+      "pristine_t": 3.22,
+      "familiar_sharpe": 0.374,
+      "familiar_t": 1.52,
+      "full_sharpe": 0.635,
+      "full_t": 3.31,
       "same_sign": "yes"
     },
     {
       "sleeve": "trend_multi",
-      "pristine_sharpe": 0.748,
-      "pristine_t": 2.58,
-      "familiar_sharpe": 0.158,
-      "familiar_t": 0.71,
-      "full_sharpe": 0.413,
-      "full_t": 2.31,
+      "pristine_sharpe": 0.953,
+      "pristine_t": 3.23,
+      "familiar_sharpe": 0.393,
+      "familiar_t": 1.72,
+      "full_sharpe": 0.635,
+      "full_t": 3.48,
       "same_sign": "yes"
     },
     {
       "sleeve": "bab",
-      "pristine_sharpe": -0.68,
-      "pristine_t": -2.61,
-      "familiar_sharpe": 0.009,
-      "familiar_t": 0.04,
-      "full_sharpe": -0.295,
-      "full_t": -1.83,
-      "same_sign": "NO"
+      "pristine_sharpe": -0.177,
+      "pristine_t": -0.65,
+      "familiar_sharpe": -0.028,
+      "familiar_t": -0.13,
+      "full_sharpe": -0.093,
+      "full_t": -0.56,
+      "same_sign": "yes"
     },
     {
       "sleeve": "turn_of_month",
-      "pristine_sharpe": 0.435,
-      "pristine_t": 1.46,
-      "familiar_sharpe": -0.149,
-      "familiar_t": -0.62,
-      "full_sharpe": 0.113,
-      "full_t": 0.6,
+      "pristine_sharpe": 0.595,
+      "pristine_t": 1.88,
+      "familiar_sharpe": -0.083,
+      "familiar_t": -0.34,
+      "full_sharpe": 0.219,
+      "full_t": 1.12,
       "same_sign": "NO"
     },
     {
       "sleeve": "xs_momentum",
-      "pristine_sharpe": 0.496,
-      "pristine_t": 1.8,
-      "familiar_sharpe": 0.264,
-      "familiar_t": 1.25,
-      "full_sharpe": 0.368,
-      "full_t": 2.17,
+      "pristine_sharpe": 0.732,
+      "pristine_t": 2.54,
+      "familiar_sharpe": 0.217,
+      "familiar_t": 1.0,
+      "full_sharpe": 0.446,
+      "full_t": 2.53,
       "same_sign": "yes"
     },
     {
       "sleeve": "value",
-      "pristine_sharpe": -0.277,
-      "pristine_t": -1.12,
-      "familiar_sharpe": -0.226,
-      "familiar_t": -1.02,
-      "full_sharpe": -0.244,
-      "full_t": -1.48,
-      "same_sign": "yes"
+      "pristine_sharpe": -0.117,
+      "pristine_t": -0.51,
+      "familiar_sharpe": 0.003,
+      "familiar_t": 0.01,
+      "full_sharpe": -0.042,
+      "full_t": -0.26,
+      "same_sign": "NO"
     }
   ],
   "book": [
     {
       "name": "equal_weight / pristine",
       "n_years": 15.4,
-      "sharpe": 0.894,
-      "t_nw": 3.13,
-      "ann_ret": 0.0681,
-      "ann_vol": 0.0762,
-      "max_dd": -0.1436
+      "sharpe": 1.097,
+      "t_nw": 3.68,
+      "ann_ret": 0.0822,
+      "ann_vol": 0.075,
+      "max_dd": -0.1602
     },
     {
       "name": "equal_weight / familiar",
       "n_years": 19.4,
-      "sharpe": 0.425,
-      "t_nw": 1.93,
-      "ann_ret": 0.0349,
-      "ann_vol": 0.0821,
-      "max_dd": -0.1882
+      "sharpe": 0.471,
+      "t_nw": 2.06,
+      "ann_ret": 0.038,
+      "ann_vol": 0.0808,
+      "max_dd": -0.2391
     },
     {
       "name": "equal_weight / full",
       "n_years": 34.8,
-      "sharpe": 0.624,
-      "t_nw": 3.56,
-      "ann_ret": 0.0496,
-      "ann_vol": 0.0795,
-      "max_dd": -0.1882
+      "sharpe": 0.737,
+      "t_nw": 4.03,
+      "ann_ret": 0.0576,
+      "ann_vol": 0.0783,
+      "max_dd": -0.2391
     },
     {
       "name": "risk_parity / pristine",
       "n_years": 15.4,
-      "sharpe": 0.882,
-      "t_nw": 3.09,
-      "ann_ret": 0.0672,
-      "ann_vol": 0.0762,
-      "max_dd": -0.144
+      "sharpe": 1.084,
+      "t_nw": 3.63,
+      "ann_ret": 0.0815,
+      "ann_vol": 0.0752,
+      "max_dd": -0.1599
     },
     {
       "name": "risk_parity / familiar",
       "n_years": 19.4,
-      "sharpe": 0.419,
-      "t_nw": 1.91,
-      "ann_ret": 0.0345,
-      "ann_vol": 0.0824,
-      "max_dd": -0.1813
+      "sharpe": 0.475,
+      "t_nw": 2.09,
+      "ann_ret": 0.0385,
+      "ann_vol": 0.0812,
+      "max_dd": -0.2336
     },
     {
       "name": "risk_parity / full",
       "n_years": 34.8,
-      "sharpe": 0.615,
-      "t_nw": 3.52,
-      "ann_ret": 0.049,
-      "ann_vol": 0.0797,
-      "max_dd": -0.1813
+      "sharpe": 0.733,
+      "t_nw": 4.02,
+      "ann_ret": 0.0576,
+      "ann_vol": 0.0786,
+      "max_dd": -0.2336
     },
     {
       "name": "BENCHMARK equal-weight buy&hold / pristine",
       "n_years": 15.4,
-      "sharpe": 0.742,
-      "t_nw": 2.64,
-      "ann_ret": 0.0524,
-      "ann_vol": 0.0707,
-      "max_dd": -0.2145
+      "sharpe": 0.691,
+      "t_nw": 2.3,
+      "ann_ret": 0.0468,
+      "ann_vol": 0.0677,
+      "max_dd": -0.2538
     },
     {
       "name": "BENCHMARK equal-weight buy&hold / familiar",
       "n_years": 19.4,
-      "sharpe": 0.45,
-      "t_nw": 2.02,
-      "ann_ret": 0.0546,
-      "ann_vol": 0.1214,
-      "max_dd": -0.4017
+      "sharpe": 0.434,
+      "t_nw": 1.92,
+      "ann_ret": 0.0509,
+      "ann_vol": 0.1172,
+      "max_dd": -0.4213
     },
     {
       "name": "BENCHMARK equal-weight buy&hold / full",
       "n_years": 34.8,
-      "sharpe": 0.526,
-      "t_nw": 3.08,
-      "ann_ret": 0.0536,
-      "ann_vol": 0.102,
-      "max_dd": -0.4017
+      "sharpe": 0.499,
+      "t_nw": 2.84,
+      "ann_ret": 0.0491,
+      "ann_vol": 0.0984,
+      "max_dd": -0.4213
     },
     {
       "name": "BENCHMARK 60/40 / pristine",
@@ -177,65 +177,95 @@
       "max_dd": -0.3973
     }
   ],
+  "breadth": [
+    {
+      "universe": "narrow core (12)",
+      "markets": 12,
+      "book_sharpe": 0.611,
+      "independent_bets": 5.26,
+      "mean_per_market_sharpe": 0.227
+    },
+    {
+      "universe": "diversifying (22)",
+      "markets": 22,
+      "book_sharpe": 0.635,
+      "independent_bets": 7.07,
+      "mean_per_market_sharpe": 0.25
+    },
+    {
+      "universe": "US sectors (19)",
+      "markets": 19,
+      "book_sharpe": 0.456,
+      "independent_bets": 8.62,
+      "mean_per_market_sharpe": 0.156
+    },
+    {
+      "universe": "all (40)",
+      "markets": 40,
+      "book_sharpe": 0.577,
+      "independent_bets": 12.69,
+      "mean_per_market_sharpe": 0.206
+    }
+  ],
   "deflation": [
     {
       "candidate": "BOOK (survivors, 1/N)",
-      "raw_sharpe": 0.624,
-      "dsr_empirical": 0.108,
-      "dsr_noise": 0.888,
-      "bhy_haircut": 0.5563,
-      "bhy_sig": true
-    },
-    {
-      "candidate": "trend",
-      "raw_sharpe": 0.611,
-      "dsr_empirical": 0.095,
-      "dsr_noise": 0.872,
-      "bhy_haircut": 0.5415,
+      "raw_sharpe": 0.737,
+      "dsr_empirical": 0.483,
+      "dsr_noise": 0.967,
+      "bhy_haircut": 0.678,
       "bhy_sig": true
     },
     {
       "candidate": "trend_multi",
-      "raw_sharpe": 0.413,
-      "dsr_empirical": 0.006,
-      "dsr_noise": 0.491,
-      "bhy_haircut": 0.3109,
-      "bhy_sig": false
+      "raw_sharpe": 0.635,
+      "dsr_empirical": 0.261,
+      "dsr_noise": 0.892,
+      "bhy_haircut": 0.5667,
+      "bhy_sig": true
+    },
+    {
+      "candidate": "trend",
+      "raw_sharpe": 0.635,
+      "dsr_empirical": 0.262,
+      "dsr_noise": 0.892,
+      "bhy_haircut": 0.5672,
+      "bhy_sig": true
     },
     {
       "candidate": "xs_momentum",
-      "raw_sharpe": 0.368,
-      "dsr_empirical": 0.003,
-      "dsr_noise": 0.388,
-      "bhy_haircut": 0.2541,
-      "bhy_sig": false
+      "raw_sharpe": 0.446,
+      "dsr_empirical": 0.04,
+      "dsr_noise": 0.553,
+      "bhy_haircut": 0.3504,
+      "bhy_sig": true
     },
     {
       "candidate": "turn_of_month",
-      "raw_sharpe": 0.113,
-      "dsr_empirical": 0.0,
-      "dsr_noise": 0.037,
-      "bhy_haircut": 0.0,
+      "raw_sharpe": 0.219,
+      "dsr_empirical": 0.001,
+      "dsr_noise": 0.116,
+      "bhy_haircut": 0.0223,
       "bhy_sig": false
     },
     {
       "candidate": "value",
-      "raw_sharpe": -0.244,
+      "raw_sharpe": -0.042,
       "dsr_empirical": 0.0,
-      "dsr_noise": 0.0,
-      "bhy_haircut": -0.0724,
+      "dsr_noise": 0.003,
+      "bhy_haircut": 0.0,
       "bhy_sig": false
     },
     {
       "candidate": "bab",
-      "raw_sharpe": -0.295,
+      "raw_sharpe": -0.093,
       "dsr_empirical": 0.0,
-      "dsr_noise": 0.0,
-      "bhy_haircut": -0.153,
+      "dsr_noise": 0.001,
+      "bhy_haircut": 0.0,
       "bhy_sig": false
     }
   ],
-  "empirical_trial_sd": 0.3694,
+  "empirical_trial_sd": 0.3236,
   "noise_implied_sd": 0.1842,
-  "n_trials": 48
+  "n_trials": 53
 }

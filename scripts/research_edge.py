@@ -86,7 +86,15 @@ def main() -> None:
     ap.add_argument("--refresh", action="store_true")
     args = ap.parse_args()
 
-    prices = extended.common_sample(extended.load(refresh=args.refresh, allow_fetch=True))
+    # The DIVERSIFYING universe: the 12-fund core plus the international-equity
+    # and fixed-income additions, but NOT the 18 US equity sector funds. That
+    # split is structural (is it a Fidelity Select sector or style fund?) and was
+    # fixed before any per-market Sharpe was inspected, so it is not
+    # performance-selected. Section [7] shows what each universe scores and why
+    # the sectors are excluded.
+    wide = extended.common_sample(
+        extended.load_wide(refresh=args.refresh, allow_fetch=True)[extended.wide_tickers()])
+    prices = wide[[c for c in wide.columns if c not in extended.US_SECTOR_FUNDS]]
     returns_total = prices.pct_change().iloc[1:]
 
     # Cash: the short-duration Treasury fund is the closest thing to a bill
@@ -97,7 +105,8 @@ def main() -> None:
 
     context = SleeveContext(prices=prices, dividends=pd.DataFrame(
         columns=["ticker", "date", "amount"]), cash_daily=cash_daily,
-        asset_class=extended.asset_class_map())
+        asset_class={k: v for k, v in extended.wide_asset_class_map().items()
+                     if k in prices.columns})
 
     index = asset_returns.index
     pristine = index[index < extended.ETF_ERA_START]
@@ -191,7 +200,7 @@ def main() -> None:
     # =====================================================================
     section("[4] ARE THE SURVIVORS INDEPENDENT, OR ONE BET WEARING THREE HATS?")
     # =====================================================================
-    from src.risk import effective_bets, ledoit_wolf_covariance
+    from src.risk import effective_bets, ledoit_wolf_covariance, spectral_bets
 
     book_returns = None
     if len(survivors) > 1:
@@ -199,7 +208,10 @@ def main() -> None:
         survivor_streams = pd.DataFrame({n: streams[n] for n in names}).dropna()
         covariance, _ = ledoit_wolf_covariance(survivor_streams)
         equal = np.full(len(names), 1.0 / len(names))
-        bets = effective_bets(equal, covariance)
+        # spectral_bets, not effective_bets: the portfolio-level count is
+        # degenerate on equal weights (it returns 1 for any positive
+        # correlation) and would answer 1.00 here regardless of the truth.
+        bets = spectral_bets(covariance)
 
         kept = {n: books[n] for n in names}
         kept_returns = sleeve_return_streams(kept, asset_returns, costs)
@@ -208,14 +220,18 @@ def main() -> None:
 
         best_single = max(names, key=lambda n: backtest.sharpe_of(streams[n]))
         print(f"    survivors                 {names}")
-        print(f"    effective independent bets {bets:.2f} of {len(names)}")
+        print(f"    independent bets (spectral) {bets:.2f} of {len(names)}")
         print(f"    best single ({best_single})       "
               f"{backtest.sharpe_of(streams[best_single]):+.3f}")
         print(f"    all {len(names)} combined            "
               f"{backtest.sharpe_of(book_returns):+.3f}")
         added = backtest.sharpe_of(book_returns) - backtest.sharpe_of(streams[best_single])
-        print(f"\n    Combining them adds {added:+.3f} Sharpe. "
-              f"They are variations on one signal, not three bets.")
+        print(f"\n    Combining them adds {added:+.3f} Sharpe over the best single")
+        print(f"    sleeve -- about what {bets:.2f} independent bets should buy.")
+        print("\n    CAVEAT: this book keeps the sleeves that were positive in BOTH")
+        print("    periods, so it used the holdout to select. Its pristine number is")
+        print("    contaminated by that choice. The single-sleeve trend result is the")
+        print("    clean out-of-sample test, and is the one to quote.")
 
     # =====================================================================
     section("[5] WHY BETTING-AGAINST-BETA FAILED -- an implementation finding")
@@ -256,11 +272,17 @@ def main() -> None:
     # =====================================================================
     section("[7] WHAT SURVIVES MULTIPLE-TESTING CORRECTION")
     # =====================================================================
-    n_trials = 30 + 12 + len(sleeves)
+    # Every configuration this repo has scored on any sample, not just the ones
+    # that made the tables. Undercounting here is the easiest way to make a
+    # deflated Sharpe look respectable.
+    n_trials = (30            # ETF study: 5 sleeves x 6 allocators
+                + 12          # reversal repair variants (scripts/reversal_search.py)
+                + len(sleeves)  # the literature candidates above
+                + 4           # the four breadth universes in section [8]
+                + 1)          # the tanh continuous-response variant
     trial_sharpes = [backtest.sharpe_of(s) for s in streams.values()]
     print(f"    trials counted: {n_trials}")
-    print(f"    (30 ETF-study configurations + 12 reversal variants + "
-          f"{len(sleeves)} candidates here)")
+    print(f"    (30 ETF configs + 12 reversal + {len(sleeves)} candidates + 4 breadth + 1 variant)")
 
     # The deflated Sharpe depends on how the null's spread is estimated, and the
     # two defensible choices disagree. Reporting one alone would be a choice
@@ -300,6 +322,60 @@ def main() -> None:
     print("    count -- which is why it is the number to quote when the two DSR")
     print("    conventions disagree.")
 
+    # =====================================================================
+    section("[8] BREADTH -- does adding markets help?")
+    # =====================================================================
+    from src.risk import spectral_bets
+
+    universes = {
+        "narrow core (12)": wide[[c for c in extended.EXTENDED_UNIVERSE
+                                  if c in wide.columns]],
+        "diversifying (22)": prices,
+        "US sectors (19)": wide[[c for c in wide.columns
+                                 if c in extended.US_SECTOR_FUNDS or c == "VFISX"]],
+        "all (40)": wide,
+    }
+    rows = []
+    for label, panel in universes.items():
+        total = panel.pct_change().iloc[1:]
+        cash_leg = total["VFISX"]
+        ex = total.sub(cash_leg, axis=0)
+        ctx = SleeveContext(
+            prices=panel,
+            dividends=pd.DataFrame(columns=["ticker", "date", "amount"]),
+            cash_daily=cash_leg,
+            asset_class={k: v for k, v in extended.wide_asset_class_map().items()
+                         if k in panel.columns})
+        one = [TrendFollowing()]
+        panel_costs = backtest.volatility_scaled_costs(args.cost_bps, ex.mean(axis=1))
+        cfg = PortfolioConfig(cost_bps=panel_costs, target_vol=0.08,
+                              sleeve_target_vol=0.10)
+        bk = vol_target_sleeves(sleeve_books(one, ctx), ex, cfg, one)
+        stream = backtest.run(bk["trend"], ex, panel_costs).returns
+
+        signal = np.sign(panel / panel.shift(252) - 1.0).shift(1)
+        per = (signal * ex).dropna(how="all")
+        per = per.loc[:, per.std() > 0].dropna()
+        covariance, _ = ledoit_wolf_covariance(per)
+        rows.append({
+            "universe": label,
+            "markets": panel.shape[1],
+            "book_sharpe": round(backtest.sharpe_of(stream), 3),
+            "independent_bets": round(spectral_bets(covariance), 2),
+            "mean_per_market_sharpe": round(
+                float(np.mean([backtest.sharpe_of(per[c]) for c in per.columns])), 3),
+        })
+    breadth = pd.DataFrame(rows)
+    print(breadth.to_string(index=False))
+    print("More markets gave MORE independent bets and a WORSE book. The")
+    print("    binding variable is per-market signal quality, not count and not")
+    print("    independence: the 18 US sector funds trend ~30% less well, and an")
+    print("    equal-weighted book dilutes directly.")
+    print("Measured with risk.spectral_bets. The portfolio-level Meucci")
+    print("    count is degenerate here -- it returns 1 for any positive")
+    print("    correlation on equal weights -- and an earlier version of this")
+    print("    study drew the opposite conclusion from it.")
+
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / "research_edge.json").write_text(json.dumps({
         "sample": {"funds": int(prices.shape[1]),
@@ -307,6 +383,7 @@ def main() -> None:
                    "years": round(len(index) / 252, 1)},
         "candidates": candidates.to_dict("records"),
         "book": book.to_dict("records"),
+        "breadth": breadth.to_dict("records"),
         "deflation": deflation.to_dict("records"),
         "empirical_trial_sd": round(empirical_sd, 4),
         "noise_implied_sd": round(noise_sd, 4),

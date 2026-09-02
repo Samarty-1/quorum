@@ -270,6 +270,24 @@ def effective_bets(weights: np.ndarray, covariance: np.ndarray) -> float:
     principal-component basis is one of several defensible choices (Meucci's
     minimum-torsion basis is another); it is used here because it needs no
     optimisation and the ranking it produces is what the study relies on.
+
+    KNOWN DEGENERACY -- read this before using it for breadth
+    ---------------------------------------------------------
+    On EQUAL weights over EQUICORRELATED assets this returns exactly `n` at
+    rho = 0 and exactly **1 for every rho > 0**. It cannot distinguish rho=0.05
+    from rho=0.9.
+
+    The reason is structural, not numerical: an equal-weight portfolio's
+    exposure lies along the ones-vector, which under equicorrelation *is* the
+    first principal component. All of the portfolio's variance then loads on one
+    factor, the entropy is zero, and the count collapses to one.
+
+    That makes it the right question ("how concentrated is THIS portfolio's
+    risk?") and the wrong one for "how many independent return sources does this
+    UNIVERSE offer?". Use :func:`spectral_bets` for the second. A published
+    version of this study quoted 1.35 against 1.06 as evidence that breadth had
+    not helped; both numbers were just "there is a common factor", and the gap
+    between them carried no information.
     """
     portfolio_variance = float(weights @ covariance @ weights)
     if portfolio_variance <= 1e-16 or not np.isfinite(portfolio_variance):
@@ -284,3 +302,33 @@ def effective_bets(weights: np.ndarray, covariance: np.ndarray) -> float:
         return float("nan")
     positive = positive / positive.sum()
     return float(np.exp(-(positive * np.log(positive)).sum()))
+
+
+def spectral_bets(covariance: np.ndarray) -> float:
+    """How many independent return sources a universe offers, regardless of weights.
+
+    The entropy of the covariance's own eigenvalue spectrum:
+
+        p_i = lambda_i / sum(lambda)      N_eff = exp(-sum p_i log p_i)
+
+    This answers the breadth question that :func:`effective_bets` cannot. It is
+    a property of the opportunity set rather than of one portfolio, so it does
+    not collapse when the weights happen to align with the first principal
+    component -- which is exactly what equal weights do under equicorrelation,
+    and why the portfolio-level measure reads 1.0 for any positive correlation.
+
+    It degrades smoothly instead. For n = 11 equicorrelated markets:
+
+        rho    0.00   0.10   0.20   0.50   0.90
+        N_eff 11.00  10.3    9.6     5.1    1.7
+
+    That is the shape a breadth diagnostic needs: adding correlated markets
+    should move it a little, adding independent ones should move it a lot, and
+    nothing should saturate.
+    """
+    eigenvalues = np.linalg.eigvalsh(covariance)
+    positive = eigenvalues[eigenvalues > 1e-14]
+    if positive.size == 0:
+        return float("nan")
+    weights = positive / positive.sum()
+    return float(np.exp(-(weights * np.log(weights)).sum()))

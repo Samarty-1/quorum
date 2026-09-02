@@ -760,3 +760,59 @@ class TestBreadthDoesNotAutomaticallyHelp:
 
         assert wide.shape[1] > narrow.shape[1], "precondition: more markets"
         assert bets(wide) < bets(narrow), "but fewer independent bets"
+
+
+class TestBreadthMetrics:
+    """The diagnostic that produced a wrong published conclusion, and its fix."""
+
+    @staticmethod
+    def _equicorrelated(n, rho):
+        return (1 - rho) * np.eye(n) + rho * np.ones((n, n))
+
+    def test_portfolio_enb_is_degenerate_on_equal_weights(self):
+        """It returns exactly 1 for ANY positive correlation, so it cannot be
+        used to compare universes. This is the bug that made 'more markets,
+        fewer bets' look true."""
+        from src.risk import effective_bets
+
+        n = 11
+        weights = np.full(n, 1.0 / n)
+        assert effective_bets(weights, self._equicorrelated(n, 0.0)) == pytest.approx(n)
+        for rho in (0.05, 0.2, 0.5, 0.9):
+            assert effective_bets(weights, self._equicorrelated(n, rho)) == pytest.approx(1.0, abs=1e-6), \
+                f"rho={rho} should collapse to 1 -- that is the degeneracy"
+
+    def test_spectral_bets_degrades_smoothly(self):
+        """The replacement must actually distinguish correlation levels."""
+        from src.risk import spectral_bets
+
+        n = 11
+        values = [spectral_bets(self._equicorrelated(n, rho))
+                  for rho in (0.0, 0.1, 0.2, 0.5, 0.9)]
+        assert values[0] == pytest.approx(n)
+        for earlier, later in zip(values, values[1:]):
+            assert later < earlier, "must fall monotonically with correlation"
+        assert values[-1] < 2.0, "near-perfect correlation is about one bet"
+        assert values[2] > 8.0, "moderate correlation still leaves many bets"
+
+    def test_spectral_bets_is_weight_free(self):
+        """It describes the opportunity set, not one portfolio, which is what
+        the breadth question actually asks."""
+        from src.risk import spectral_bets
+
+        covariance = self._equicorrelated(8, 0.3)
+        # No weights argument exists to pass -- the property is structural.
+        assert spectral_bets(covariance) == pytest.approx(spectral_bets(covariance))
+        assert 1.0 < spectral_bets(covariance) < 8.0
+
+    def test_more_independent_markets_raises_spectral_bets(self):
+        from src.risk import spectral_bets
+
+        rng = np.random.default_rng(91)
+        n = 2000
+        base = pd.DataFrame(rng.normal(0, 0.01, size=(n, 4)))
+        independent = pd.DataFrame(np.hstack([base, rng.normal(0, 0.01, size=(n, 8))]))
+        driver = rng.normal(0, 0.01, size=(n, 1))
+        clones = pd.DataFrame(np.hstack([base, driver + rng.normal(0, 0.001, size=(n, 8))]))
+
+        assert spectral_bets(np.cov(independent.T)) > spectral_bets(np.cov(clones.T))
